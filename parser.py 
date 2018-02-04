@@ -29,8 +29,8 @@ import pandas as pd
 class PGNGame(object):
     def __init__(self):
         self.ficsgamesdbgameno = ""
-        self.white = 0
-        self.black = 0
+        self.white = ""
+        self.black = ""
         self.blackelo = 0
         self.whiteelo = 0
         self.timecontrol = 0
