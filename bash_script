@@ -1,0 +1,6 @@
+
+*.pgn $d
+cat *.pgn > concat_file.pgn
+#Need files in folder to be chronological / alphabetical
+#This creates a new file called concat_file
+#This sends an error but it still creates the proper file anyways
