@@ -1,6 +1,3 @@
-
-*.pgn sed $d
-cat *.pgn > concat_file3.pgn
+cat *.pgn | head -n -1 > concatenated.pgn
 #Need files in folder to be chronological / alphabetical
-#This creates a new file called concat_file
-#This sends an error but it still creates the proper file anyways
+#This creates a new file titled "concatenated" but leaves previous files as is
