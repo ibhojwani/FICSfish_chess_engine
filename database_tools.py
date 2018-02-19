@@ -14,24 +14,28 @@ import sqlite3
 from fractions import Fraction
 import os
 
-# information to pull from the pgn file.
-INFO_TO_PULL = {"WhiteElo",
+# information to pull from the pgn file
+INFO_TO_PULL = ["FICSGamesDBGameNo",
+                "WhiteElo",
                 "BlackElo",
                 "WhiteRD",
                 "BlackRD",
                 "ECO",
                 "PlyCount",
                 "Result",
-                "Moves"}
-# Information to include in db, with datatypes
+                "Moves"]
+# Information to include in db (<column name>, <structure_type>)
 INFO_TO_INCLUDE = {"WhiteElo": "INTEGER",
                    "BlackElo": "INTEGER",
                    "Result": "INTEGER",
                    "PlyCount": "INTEGER",
-                   "Moves": "TEXT"}
+                   "Moves": "TEXT",
+                   "FICSGamesDBGameNo": "INTEGER"}
+# Indices to build on database (<index name>, <table>, [<column(s)>])
+INDICES = [("IX_Move", "Moves", ["Move"])]
 
 
-def populate_db(games_file, db, redundancy=True):
+def populate_db(games_file, db, unique=True):
     '''
     Populates the database with a list of games.
     input:
@@ -45,15 +49,14 @@ def populate_db(games_file, db, redundancy=True):
     conn = sqlite3.connect(db)
 
     # if param is true, checks to make sure file isn't already in db.
-    if redundancy:
-        if check_file(games_file, conn):
-            print("Checking if file is already in database...")
-            print("File is already in database!\n")
-            return None
+    if check_file(games_file, conn, unique):
+        print("File is already in database!\n")
+        return None
     conn.execute("INSERT INTO FilesAdded Values (?);", [games_file])
 
-    print("Removing old indices...")
-    conn.execute("DROP INDEX IF EXISTS IX_Moev;")
+    # Drops old indices. May be faster to omit this, needs testing.
+    print("Dropping Indices...")
+    drop_indices(conn)
 
     # Opens game file and adds games, printing % completion every 10%
     print("Adding games...0%")
@@ -65,8 +68,9 @@ def populate_db(games_file, db, redundancy=True):
     # Concludes insert, builds index and stat table, and closes connection
     i = conn.total_changes
     print("Building new indices and cleaning up...")
-    print("Modified {} rows".format(i))
-    conn.execute("CREATE INDEX IF NOT EXISTS IX_Move on Moves (Move ASC);")
+    build_indices(conn)
+
+    print("Modified {} rows".format(i - 1))
     conn.execute("ANALYZE;")
     conn.commit()
     conn.close()
@@ -87,13 +91,14 @@ def initialize_db(path):
     for field, field_type in INFO_TO_INCLUDE.items():
         games_query += " {} {},\n".format(field, field_type)
 
-    games_query = games_query[:-2] + ");"
+    games_query = games_query + " GameID INTEGER PRIMARY KEY);"
     conn.execute(games_query)
 
     files_added_query = "CREATE TABLE IF NOT EXISTS FilesAdded (FileName)"
     conn.execute(files_added_query)
 
-    moves_query = "Create Table IF NOT EXISTS Moves (Move, GameID)"
+    moves_query = "Create Table IF NOT EXISTS Moves (\n" \
+        "Move, GameID, FOREIGN KEY(GameID) REFERENCES Games(GameID));"
     conn.execute(moves_query)
 
     conn.commit()
@@ -102,18 +107,50 @@ def initialize_db(path):
     return None
 
 
-def check_file(games_file, db):
+def check_file(games_file, db, unique):
     '''
     Checks if a given file has already been added to the db from the filename.
     Inputs:
         game_file: string, name of file (NOT path)
         db: database cursor or connection
-    returns bool
+    returns True if item in db, False if not
     '''
+    if not unique:
+        return False
+
     added_files = db.execute("SELECT FileName FROM FilesAdded WHERE FileName\
         = ?", [games_file]).fetchall()
 
     return bool(added_files)
+
+
+def drop_indices(conn):
+    '''
+    Drops all indices in a database.
+    Inputs:
+        conn: database connection object
+    returns None
+    '''
+    for index in INDICES:
+        conn.execute("DROP INDEX IF EXISTS {};".format(index[0]))
+    return None
+
+
+def build_indices(conn):
+    '''
+    Builds indices for a database.
+    Inputs:
+        conn: database connection object
+    returns None
+    '''
+    for ix in INDICES:
+        query = "CREATE INDEX IF NOT EXISTS {} on {} (".format(ix[0], ix[1])
+        for col in ix[2]:
+            query += "{}, ".format(col)
+        query = query[:-2] + ");"
+        conn.execute(query)
+
+    return None
 
 
 def pull_info(game, file_flag=False):
@@ -133,7 +170,7 @@ def pull_info(game, file_flag=False):
 
     for line in line_list[:-2]:
         split = line.split(' "')
-        if split[0][1:] in INFO_TO_INCLUDE:
+        if split[0][1:] in INFO_TO_PULL:
             game_info[split[0][1:]] = split[1][:-2]
     game_info["Moves"] = '"' + re.sub(r"{.*", "", line_list[-1]) + '"'
 
@@ -157,13 +194,13 @@ def tweak_info(game_info):
             string
         returns None
         '''
-        if key in INFO_TO_INCLUDE:
+        if key in INFO_TO_PULL:
             game_info[key] = int(float(game_info[key]))
         return None
 
     # Turns 'Result' from string to int, w/ white win=1, black=-1, and draw=0
     # This is done save space (3-7 bytes to just 1) and simplify querying.
-    if 'Result' in INFO_TO_INCLUDE:
+    if 'Result' in INFO_TO_PULL:
         result_l = game_info['Result'].split('-')
         game_info['Result'] = int(Fraction(result_l[0]) -
                                   Fraction(result_l[1]))
@@ -174,7 +211,7 @@ def tweak_info(game_info):
             convert_to_int(key)
 
     # Ensures ECO is passed as a string
-    if 'ECO' in INFO_TO_INCLUDE:
+    if 'ECO' in INFO_TO_PULL:
         game_info['ECO'] = '"' + game_info["ECO"] + '"'
 
     if game_info["PlyCount"] >= 200 or game_info["PlyCount"] < 5:
@@ -258,6 +295,8 @@ def add_all_in_dir(directory, db):
         print("{}/{}".format(i + 1, len(os.listdir(directory))))
         if file.endswith(".pgn"):
             populate_db("{}/{}".format(directory, file), db)
+        else:
+            print("Skipping non .pgn file...")
     return None
 
 
@@ -268,18 +307,24 @@ def clear_db(db):
         db: database path
     returns None
     '''
+    tables = ["Moves", "Games", "FilesAdded"]
     conn = sqlite3.connect(db)
-    conn.execute("DROP TABLE IF EXISTS Games;")
-    conn.execute("DROP TABLE IF EXISTS FilesAdded;")
-    conn.execute("DROP TABLE IF EXISTS Moves;")
-    conn.execute("DROP TABLE IF EXISTS sqlite_stat1;")
-    conn.execute("DROP INDEX IF EXISTS IX_Move;")
+
+    for table in tables:
+        conn.execute("DROP TABLE IF EXISTS {};".format(table))
+    
+    for index in INDICES:
+        conn.execute("DROP INDEX IF EXISTS {};".format(index[0]))
+
     conn.execute("VACUUM;")
     conn.commit()
-
     print("Database cleared")
 
     return None
+
+
+if __name__ == "__main__":
+    add_all_in_dir(os.getcwd(), "database.db")
 
 
 '''
