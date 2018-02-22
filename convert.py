@@ -63,7 +63,7 @@ def create_knights():
 	return [knight1White, knight2White, knight2Black, knight1Black]
 
 def create_rooks():
-	movements = [1, 10]
+	movements = [1, 10, -1, -10]
 
 	rook1White = piece("R", 0, ("a1", 11), movements, True, "White")
 	rook2White = piece("R", 0, ("h1", 18), movements, True, "White")
@@ -73,7 +73,7 @@ def create_rooks():
 	return [rook1White, rook1Black, rook2White, rook2Black]
 
 def create_bishops():
-	movements = [11, 9]
+	movements = [11, 9, -11, -9]
 	bishop1White = piece("B", 0, ("c1", 13), movements, True, "White")
 	bishop2White = piece("B", 0, ("f1", 16), movements, True, "White")
 	bishop1Black = piece("B", 0, ("c8", 83), movements, True, "Black")
@@ -121,7 +121,67 @@ def create_queens():
 	queenBlack = piece("Q", 0, ("d8", 84), movements, True, "Black")
 	return [queenWhite, queenBlack]
 
-def convert_string(old_positions):
+def convert_string(take, turn, pieces):
+	players = ["White", "Black"]
+
+	for position in take:
+		if len(position) == 2:
+			check = "P"
+			point = convert_position(position)
+		if len(position) > 2:
+			check = position[0]
+			position = position[1:3]
+			point = convert_position(position)
+
+		for piece in pieces:
+			if piece.label == check and piece.player == players[turn%2]:				
+				coordinate = piece.current_pos[1]
+				
+				if piece.player == "Black":
+					move = coordinate - point
+				elif piece.player =="White":
+					move = point - coordinate
+
+
+				if piece.unlimited == False:
+					if move in piece.movements:
+						sunfish_move = piece.current_pos[0] + position
+						piece.current_pos = (position, point)
+						piece.past_moves += 1
+						return(sunfish_move)
+						
+					elif piece.label == "P" and piece.past_moves == 0:
+						if move == 20:
+							sunfish_move = piece.current_pos[0] + position
+							piece.current_pos = (position, point)
+							piece.past_moves += 1
+							return(sunfish_move)
+							
+
+				elif piece.unlimited == True:
+					for factor in piece.movements:
+						if move % factor == 0 and (move // factor) < 10:
+							if move > 0:
+								for i in range(1, (move // factor) +1):
+									change = i * factor
+									if piece.player == "White":
+										test = piece.current_pos[1] + change
+									elif piece.player == "Black":
+										test = piece.current_pos[1] - change
+									for subpiece in pieces:
+										if subpiece != piece and subpiece.current_pos[1] == test:
+											if subpiece.player != piece.player:
+												sunfish_move = piece.current_pos[0]+position
+												piece.current_pos = (position, test)
+												del subpiece
+												return(sunfish_move)
+									sunfish_move = piece.current_pos[0] + position
+									piece.current_pos = (position, test)
+									return(sunfish_move)							
+
+	return(converted_moves)
+
+def test(old_positions):
 	take = isolate_string(old_positions)
 	print(take)
 	pieces = create_pawns()
@@ -132,55 +192,13 @@ def convert_string(old_positions):
 	pieces.extend(create_rooks())
 
 	converted_moves = []
-	players = ["White", "Black"]
 	turn = 0
-	check = False
+	for move in take:
+		converted_moves.append(convert_string([move], turn, pieces))
+		turn += 1
+	return converted_moves
 
-	for position in take:
-		if len(position) == 2:
-			point = convert_position(position)
-		if len(position) > 2:
-			check = position[0]
-			position = position[1:3]
-			point = convert_position(position)
-		for piece in pieces:
-			if (check == False) or (check and check == piece.label):
-				if piece.player == players[turn%2]:
-					coordinate = piece.current_pos[1]
-					if piece.player == "Black":
-						move = coordinate - point
-					elif piece.player =="White":
-						move = point - coordinate
 
-					if piece.unlimited == False:
-						if move in piece.movements:
-							sunfish_move = piece.current_pos[0] + position
-							piece.current_pos = (position, point)
-							converted_moves.append(sunfish_move)
-							piece.past_moves += 1
-							turn += 1
-							check = False
-							break
-						elif piece.label == "P" and piece.past_moves == 0:
-							if move == 20:
-								sunfish_move = piece.current_pos[0] + position
-								piece.current_pos = (position, point)
-								converted_moves.append(sunfish_move)
-								piece.past_moves += 1
-								turn += 1
-								check = False
-								break
-
-									
-
-	return(converted_moves)
-
-def num_to_string(coordinate):
-	row = str(coordinate // 10)
-	letter_i = coordinate % 10
-	letter = LETTERS[letter_i - 1]
-
-	return(letter+row)
 
 
 
