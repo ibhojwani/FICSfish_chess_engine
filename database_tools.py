@@ -1,11 +1,6 @@
 '''
 CS122 Project
-
 Ginormous Anteaters
-
-Contains 2 primary functions, initialize_db() and populate_db(), to
-build a database and insert information from a pgn file, respectively.
-
 Author(s): Ishaan Bhojwani
 '''
 
@@ -22,7 +17,6 @@ INFO_TO_PULL = ["FICSGamesDBGameNo",
                 "BlackElo",
                 "WhiteRD",
                 "BlackRD",
-                "ECO",
                 "PlyCount",
                 "Result",
                 "Moves"]
@@ -31,7 +25,6 @@ INFO_TO_INCLUDE = {"WhiteElo": "INTEGER",
                    "BlackElo": "INTEGER",
                    "Result": "INTEGER",
                    "PlyCount": "INTEGER",
-                   "Moves": "TEXT",
                    "FICSGamesDBGameNo": "INTEGER"}
 # Indices to build on database (<index name>, <table>, [<column(s)>])
 INDICES = [("IX_Move", "Moves", ["Move"])]
@@ -48,6 +41,7 @@ def populate_db(games_file, db, unique=True, query_freq=QUERY_FREQ):
         redundancy: when True, stops redundant files from being added
     returns int,  # of games added
     '''
+    init_t = time.time()
     print('Connecting to database...')
     initialize_db(db)
     conn = sqlite3.connect(db)
@@ -74,7 +68,7 @@ def populate_db(games_file, db, unique=True, query_freq=QUERY_FREQ):
     print("Building new indices and cleaning up...")
     build_indices(conn)
 
-    print("Modified {} rows".format(i - 1))
+    print("Modified {} rows in {} seconds.".format(i-1, time.time() - init_t))
     conn.execute("ANALYZE;")
     conn.commit()
     conn.close()
@@ -106,6 +100,40 @@ def initialize_db(path):
     conn.execute(moves_query)
 
     conn.commit()
+
+    return None
+
+
+def add_games(game_list, db):
+    '''
+    Adds a game to a database.
+    Inputs:
+        game_list: list containing strings to pass to pull_info
+        db: database cursor or connection
+    returns None
+    '''
+    length = len(game_list)
+    i = 0
+
+    for game in game_list:
+        i += 1
+        if i % 10000 == 0:
+            print("..............{}%".format(round(i / length * 100)))
+
+        if game[0] != '[':  # Need to find how to split without losing the '['
+            game = '[' + game
+        game_info = pull_info(game)
+
+        if game_info:
+            query = "INSERT INTO games ("
+            for field in INFO_TO_INCLUDE:
+                query += "\n{},".format(field)
+            query = query[:-1] + ")" + "\nVALUES ("
+            for value in INFO_TO_INCLUDE:
+                query += "\n{},".format(game_info[value])
+            query = query[:-1] + ");"
+
+            db.execute(query)
 
     return None
 
@@ -217,48 +245,12 @@ def tweak_info(game_info):
         if value == "INTEGER":
             convert_to_int(key)
 
-    # Ensures ECO is passed as a string
-    if 'ECO' in INFO_TO_PULL:
-        game_info['ECO'] = '"' + game_info["ECO"] + '"'
+    game_info["Moves"] = translate_moves_to_int(game_info["Moves"])
 
     if game_info["PlyCount"] >= 200 or game_info["PlyCount"] < 5:
         game_info = None
 
     return game_info
-
-
-def add_games(game_list, db):
-    '''
-    Adds a game to a database.
-    Inputs:
-        game_list: list containing strings to pass to pull_info
-        db: database cursor or connection
-    returns None
-    '''
-    length = len(game_list)
-    i = 0
-
-    for game in game_list:
-        i += 1
-        if i % 10000 == 0:
-            print("..............{}%".format(round(i / length * 100)))
-
-        if game[0] != '[':  # Need to find how to split without losing the '['
-            game = '[' + game
-        game_info = pull_info(game)
-
-        if game_info:
-            query = "INSERT INTO games ("
-            for field in INFO_TO_INCLUDE:
-                query += "\n{},".format(field)
-            query = query[:-1] + ")" + "\nVALUES ("
-            for value in INFO_TO_INCLUDE:
-                query += "\n{},".format(game_info[value])
-            query = query[:-1] + ");"
-
-            db.execute(query)
-
-    return None
 
 
 def translate_moves_to_int(moves):
@@ -277,14 +269,14 @@ def translate_moves_to_int(moves):
             "8": 8}
 
     # split move string into individual moves
-    rounds = re.split(r" \w*\. ", moves[3:])
+    rounds = re.split(r" \w*\. ", moves[4:])
     turns = []
     for r in rounds:
         turns += r.split(" ")  # this could be done in main loop to save time
     int_turns = []
 
     # USE MORE DICTS for mapping?
-    for turn in turns:
+    for turn in turns[:-1]:
         orig_turn = turn
 
         # Castling. Nested IF to only do 1 check on all non castle moves
@@ -308,10 +300,13 @@ def translate_moves_to_int(moves):
 
         # Deal with pawns. In its own function due to special pawn rules re
         # pawn promotion and notation.
-        if turn[0].islower():
-            int_turns.append(translate_pawns_helper(move_int, turn, maps))
-            continue
-
+        try:
+            if turn[0].islower():
+                int_turns.append(translate_pawns_helper(move_int, turn, maps))
+                continue
+        except:
+            print(orig_turn)
+            raise
         # Deal with non-pawn pieces
         else:
             move_int += maps[turn[0]]
