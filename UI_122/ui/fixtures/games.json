@@ -1,0 +1,9 @@
+[
+    {
+        "model": "ui.games",
+        "pk": 1,
+        "fields": {
+            "BlackElo": 2000
+        }
+    }
+]
