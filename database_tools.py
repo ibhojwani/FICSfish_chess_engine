@@ -235,7 +235,7 @@ def tweak_info(game_info):
         result = game_info['Result'][2]  # 'Result' is either 1-0, 0-1, 1/2-1/2
         if result == "0":  # White wins
             game_info['Result'] = 1
-        elif result == "1":  # Black wins
+        elif result == "1":  # Black win
             game_info['Result'] = -1
         else:  # Draw
             game_info['Result'] = 0
