@@ -12,8 +12,7 @@ import matplotlib.pyplot as plt
 
 
 # information to pull from the pgn file
-INFO_TO_PULL = ["FICSGamesDBGameNo",
-                "WhiteElo",
+INFO_TO_PULL = ["WhiteElo",
                 "BlackElo",
                 "WhiteRD",
                 "BlackRD",
@@ -24,15 +23,17 @@ INFO_TO_PULL = ["FICSGamesDBGameNo",
 INFO_TO_INCLUDE = {"WhiteElo": "INTEGER",
                    "BlackElo": "INTEGER",
                    "Result": "INTEGER",
-                   "PlyCount": "INTEGER",
-                   "FICSGamesDBGameNo": "INTEGER"}
+                   "PlyCount": "INTEGER"}
 # Indices to build on database (<index name>, <table>, [<column(s)>])
 INDICES = [("IX_Move", "Moves", ["Move"])]
 
-QUERY_FREQ = 100  # CURRENTLY UNUSED
+# Determines how many games go into a single INSERT statement. Adjusted to be
+# fast on my machine, don't know if the ideal number will be different on
+# another machine -- Ishaan (ibhojwani)
+QUERY_FREQ = 250
 
 
-def populate_db(games_file, db, unique=True, query_freq=QUERY_FREQ):
+def populate_db(games_file, db, unique=True, n=None, query_freq=QUERY_FREQ):
     '''
     Populates the database with a list of games.
     input:
@@ -61,7 +62,7 @@ def populate_db(games_file, db, unique=True, query_freq=QUERY_FREQ):
     with open(games_file, "r") as file:
         games = file.read()
     game_list = re.split(r"\n\n\[", games)
-    add_games(game_list, conn)
+    add_games(game_list, conn, n)
 
     # Concludes insert, builds index and stat table, and closes connection
     i = conn.total_changes
@@ -96,7 +97,7 @@ def initialize_db(path):
     conn.execute(files_added_query)
 
     moves_query = "Create Table IF NOT EXISTS Moves (\n" \
-        "Move, GameID, FOREIGN KEY(GameID) REFERENCES Games(GameID));"
+        "Move, Turn, GameID, FOREIGN KEY(GameID) REFERENCES Games(GameID));"
     conn.execute(moves_query)
 
     conn.commit()
@@ -104,36 +105,78 @@ def initialize_db(path):
     return None
 
 
-def add_games(game_list, db):
+def add_games(game_list, db, n):
     '''
     Adds a game to a database.
     Inputs:
         game_list: list containing strings to pass to pull_info
         db: database cursor or connection
+        n: max number to add, if None then add all
     returns None
     '''
-    length = len(game_list)
-    i = 0
+    def build_game_query():
+        ''' Builds query outline for game insert'''
+        query = "INSERT INTO Games("
+        for field in INFO_TO_INCLUDE:
+            query += "\n{},".format(field)
+        query = query[:-1] + ")" + "\nVALUES ("
+        return query  # string
 
-    for game in game_list:
-        i += 1
-        if i % 10000 == 0:
+    def build_move_query():
+        ''' Builds query outline for move insert'''
+        return "INSERT INTO Moves(\n move,\n turn,\n gameID) VALUES ("  # string
+
+    j = 0
+    game_query = build_game_query()
+    move_query = build_move_query()
+    if n:
+        game_list = game_list[:n]
+    length = len(game_list)
+
+    for i, game in enumerate(game_list):
+        j += 1
+        # print % completion at intervals of 10% and every 9k moves
+        if (i % 9000 == 0) or (round(i/length*100, 2) % 10 == 0):
             print("..............{}%".format(round(i / length * 100)))
 
-        if game[0] != '[':  # Need to find how to split without losing the '['
+        # Ensures game starts with '[', which can be lost during splitting
+        if game[0] != '[':
             game = '[' + game
         game_info = pull_info(game)
 
+        # FIND A FASTER WAY TO BUILD QUERY -- maybe less adding strings?
         if game_info:
-            query = "INSERT INTO games ("
-            for field in INFO_TO_INCLUDE:
-                query += "\n{},".format(field)
-            query = query[:-1] + ")" + "\nVALUES ("
+            # Builds game query
             for value in INFO_TO_INCLUDE:
-                query += "\n{},".format(game_info[value])
-            query = query[:-1] + ");"
+                game_query += "\n{},".format(game_info[value])
+            game_query = game_query[:-1] + "), ("
 
-            db.execute(query)
+            # Builds move query
+            for move_num, move in enumerate(game_info["Moves"]):
+                # Adds move, current plycount, and gameid
+                move_query += "{}, {}, {}), (".format(str(move),
+                                                      move_num + 1,
+                                                      i + 1)
+
+        # Execute / commit in batches, as multirow inserts are faster.
+        # Best freq depends: long query strings uses more RAM and can slow.
+        if j == QUERY_FREQ:
+            # print(game_query[:-3] + ";")
+            # print(move_query[:-3] + ";")
+            # Execute and commit queries
+            try:
+                db.execute(game_query[:-3] + ";")
+                db.execute(move_query[:-3] + ";")
+                db.commit()
+            except:
+                print(game_query[:-3])
+                print(move_query[:-3])
+                raise
+
+            # Reset variables
+            game_query = build_game_query()
+            move_query = build_move_query()
+            j = 0
 
     return None
 
@@ -245,9 +288,10 @@ def tweak_info(game_info):
         if value == "INTEGER":
             convert_to_int(key)
 
-    game_info["Moves"] = translate_moves_to_int(game_info["Moves"])
+    # Translates moves into a list of 2 byte ints
+    game_info["Moves"] = translate_moves_to_int(game_info["Moves"])[:50]
 
-    if game_info["PlyCount"] >= 200 or game_info["PlyCount"] < 5:
+    if game_info["PlyCount"] < 5:
         game_info = None
 
     return game_info
@@ -594,7 +638,7 @@ def translation_test(db, n=20, test_cases=None, v=False):
     elif db:
         conn = sqlite3.connect(db)
         games = conn.execute("SELECT moves from Games ORDER BY random() "
-                             "LIMIT ?", [n]).fetchall()
+                             "LIMIT ?;", [n]).fetchall()
         conn.close()
         temp_moves = "".join([moves[0] for moves in games])  # concat games
         temp_moves = re.split(r" \w*\. ", temp_moves)  # rm move #, make list
@@ -642,6 +686,7 @@ move -> numbers
     getting all this shit as a 2 byte int was a bitch.
     order of move_int building
 big files take foever to open
+TALK ABOUT HOW MANY MOVES TO INCLUDE
 
 need to do:
 move -> numbers
