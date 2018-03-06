@@ -1,4 +1,4 @@
-#Cat Raggi
+
 import re
 
 given = "1. e4 c5 2. f4 e6 3. Nf3 Nc6 4. d3 d5 \
@@ -40,7 +40,7 @@ def isolate_string(string):
 	con = string.split(".")
 	rv = []
 	for move in con:
-		sub = re.findall(r"[A-z]+\d", move)
+		sub = re.findall(r"[A-z]+\d|O-O|O-O-O", move)
 		rv.extend(sub)
 	return(rv)
 
@@ -168,25 +168,83 @@ def pawn_to_queen(new_space, player, board):
 			board.remove(piece)
 			return(sunfish_move)
 
+def castling(castle, player, board):
+	rooks = []
+	rook = ""
+	for piece in board:
+		if piece.player == player:
+			if piece.label == "K":
+				king = piece
+				board.remove(piece)
+			elif piece.label == "R":
+				if castle == "O-O" and piece.current_pos[0][0] == "h":
+					rook = piece
+					board.remove(piece)
+				elif castle =="O-O-O" and piece.current_pos[0][0] == "a":
+					rook = piece
+					board.remove(piece)
+
+	if player == "White":
+		if castle == "O-O":
+			sunfish_move = "e1g1"
+			king.current_pos = ("g1", 17)
+			king.past_moves += 1
+			rook.current_pos = ("f1", 16)
+			rook.past_moves += 1
+
+		elif castle == "O-O-O":
+			sunfish_move = "e1b1"
+			king.current_pos = ("b1", 12)
+			king.past_moves += 1
+			rook.current_pos = ("c1", 13)
+			rook.past_moves += 1
+	elif player == "Black":
+		if castle == "O-O":
+			sunfish_move = "e8g8"
+			king.current_pos = ("g8", 87)
+			king.past_moves += 1
+			rook.current_pos = ("f8", 86)
+			rook.past_moves += 1
+		elif castle == "O-O-O":
+			sunfish_move = "e8b8"
+			king.current_pos = ("b8", 82)
+			king.past_moves += 1
+			rook.current_pos = ("c8", 83)
+			rook.past_moves += 1
+
+	board.append(king)
+	board.append(rook)
+	return(sunfish_move)
+
+def capture_piece(position, label, turn, board):
+	for piece in board:
+		pass
 
 def convert_string(take, turn, board):
 
 	players = ["White", "Black"]
 	current_player = players[turn%2]
+	check = "P"
 
 	for position in take:
+
+		if position == "O-O" or position == "O-O-O":
+			return(castling(position, current_player, board))
 		'''
 		Check to see if the piece is a pawn. 
 		Assumes that the string will distinguish non-pawns.
 		This section standardizes the string
 		'''
 		if len(position) == 2:
-			check = "P"
 			point = convert_position(position)
 		if len(position) == 3:
-			check = position[0]
-			position = position[1:3]
-			point = convert_position(position)
+			if position[-1] == "+":
+				pass
+				
+			else:
+				check = position[0]
+				position = position[1:3]
+				point = convert_position(position)
 
 		if len(position) == 4:
 			'''
@@ -235,30 +293,33 @@ def convert_string(take, turn, board):
 							
 
 				elif piece.unlimited == True:
-					'''
-					This section checks moves for pieces like the queen or rooks.
-					It the move is in a direction they can move in, 
-					it checks for any blocking pieces
-					to see if it is a possible move.
-					'''
-					for path in piece.movements:
+					for factor in piece.movements:
 						blocked = False
-						if move % path == 0 and 0 < (move // path) < 10:
-							if not blocked:
-								for i in range(1, (move // path) + 1):
-									change = i * path
-									if piece.player == "White":
-										test = piece.current_pos[1] + change
-									elif piece.player == "Black":
-										test = piece.current_pos[1] - change
-									for subpiece in board:
-										if subpiece != piece and subpiece.current_pos[1] == test:
-											blocked = True
-									sunfish_move = piece.current_pos[0] + position
-									piece.current_pos = (position, test)
-									return(sunfish_move)							
+						test = 0
+						if move % factor == 0 and (move // factor) < 10:
+							if (move // factor) < 0:
+								move *= -1
 
-	return(converted_moves)
+							for i in range(1, (move // factor) +1):
+								print("made it")
+								change = i * factor
+								print("change")
+								print(piece.player)
+								if piece.player == "White":
+									test = piece.current_pos[1] + change
+								elif piece.player == "Black":
+									test = piece.current_pos[1] - change
+								for subpiece in board:
+									print(subpiece.current_pos, test)
+									if subpiece != piece and subpiece.current_pos[1] == test:
+										print("now its blocked")
+										blocked = True
+							if not blocked:
+								print(blocked)
+								print(piece.current_pos, "not blocked")
+								sunfish_move = piece.current_pos[0] + position
+								piece.current_pos = (position, test)
+								return(sunfish_move)							
 
 def test(old_positions):
 	'''
@@ -267,7 +328,6 @@ def test(old_positions):
 	Goes through list of moves and converts to sunfish
 	'''
 	take = isolate_string(old_positions)
-	print(take)
 	board = create_pawns()
 	board.extend(create_knights())
 	board.extend(create_bishops())
@@ -281,6 +341,12 @@ def test(old_positions):
 		converted_moves.append(convert_string([move], turn, board))
 		turn += 1
 	return converted_moves
+
+def test2(st, board):
+	x = convert_string([st], 0, board)
+	print(x)
+
+
 
 
 
