@@ -14,8 +14,8 @@ def form_view(request):
         if form.is_valid():
             data = form.cleaned_data
             print(data)
-            statistics_to_return = filtering_db.return_statistics(database.db, data)
-            return HttpResponse(statistics_to_return)
+#            statistics_to_return = filtering_db.return_statistics(database.db, data)
+            return HttpResponse(data)
         else:
             return HttpResponse('Your inputs were incorrect and the form cannot\
                 be processed. Please re-enter valid inputs.')
