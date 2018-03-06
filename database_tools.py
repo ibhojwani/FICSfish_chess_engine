@@ -21,6 +21,7 @@ modes of play?
 storing past moves?
 Only include winning moves?
 filter on join?
+take re from sunfishconvert
 '''
 
 # information to pull from the pgn file
@@ -39,7 +40,7 @@ INFO_TO_INCLUDE = {"WhiteElo": "INTEGER",
                    "PlyCount": "INTEGER"}
 
 # Indices to build on database (<index name>, <table>, [<column(s)>])
-INDICES = [("IX_Move", "Moves", ["Move"])]
+INDICES = [("IX_Move", "Moves", ["Turn", "Move", "GameID"])]
 
 # Determines how many games go into a single INSERT statement. Adjusted to be
 # fast on my machine, don't know if the ideal number will be different on
@@ -47,19 +48,51 @@ INDICES = [("IX_Move", "Moves", ["Move"])]
 QUERY_FREQ = 250
 
 
-def return_best(turn, db, random=False):
+def return_best(conn, views, turn):
     '''
-    returns the best move and creates relevent views.
+    Takes a move, creates viewreturns the best move and creates relevent views
+    Inputs:
+        conn: db connection
+        views: list of names of current existing views for past turns
+        turn: turn previously played
     '''
+    turn_number = len(views) + 1
 
-    int_turn = translate_moves_to_int("1. " + turn)
-    # CORRECT WAY TO SUBQUERY?
-    "SELECT move from Moves where gameid in"
-    "(SELECT gameid "
-    db.execute("DROP VIEW IF EXISTS valid_games")
-    db.execute("CREATE VIEW valid_games as "
-               "SELECT * from ")
+    # Each view represents games which contain the correct move for a certain
+    # turn. By intersecting all views, you get the games which contain
+    # the correct move for every turn so far.
+    turn_view_query = "CREATE VIEW valid_games_? AS \
+                        SELECT games.gameID, games.result FROM games\
+                        JOIN moves ON moves.gameID=games.gameID\
+                        WHERE moves.turn = ? AND moves.move=?"
+    conn.execute(turn_view_query, [turn_number, turn_number, turn])
+    views.append("valid_games_{}".format(turn_number))
 
+    # Build the intersection view
+    intersect_query = "CREATE VIEW valid_games AS "
+    select_statements = []
+    for view in views:
+        select_statements.append("SELECT * from {}".format(view))
+    intersect_query += " INTERSECT ".join(select_statements) + ';'
+    conn.execute(intersect_query)
+
+    best_move_query = "SELECT move FROM moves\
+                       JOIN valid_games ON moves.gameID=valid_games.gameID \
+                       where valid_games.result = 1 \
+                       AND turn = 3 \
+                       GROUP BY move ORDER BY count(move) DESC \
+                       LIMIT 1"
+    return conn.execute(best_move_query).fetchall()[0][0]
+
+    return None
+
+
+def end_game(conn, views):
+    '''
+    Resets the database for future games by dropping views to avoid clutter.
+    '''
+    for view in views:
+        conn.execute("DROP VIEW ?;", [view])
     return None
 
 
