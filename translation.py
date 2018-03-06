@@ -1,3 +1,12 @@
+'''
+Tranlsates algebraic notation to integer notation and vice versa.
+See docstring at end for methodology and format of integer notation.
+'''
+
+import sqlite3
+import re
+
+
 def translate_moves_to_int(moves):
     '''
     Parses moves. Has to be fast. Indexing is avoided as much as possible, as
@@ -288,3 +297,76 @@ def translation_test(db, n=20, test_cases=None, v=False):
     if incorrect:
         print("Incorrect:", incorrect)
     return incorrect
+
+
+'''
+HOW THE MOVE->INTEGER ALGORITHM WORKS
+
+Each move is represented by a 2 byte signed integer. This saves quite a bit of
+space, as originally a move would be up to 7 bytes in length.
+
+The magnitude of the 2 byte integer must be less than 32767. Each char in this
+int (6 positions, including the sign) are assigned a different meaning.
+
+For the sake of the explanation, number each digit 1-6:
++ 3 2 7 6 7 (2 byte integer max value)
+1 2 3 4 5 6 (position identifier #)
+
+The positions have the following significance:
+1) Captures
+    (+) signifies no capture was made in the move
+    (-) signifies a capture
+2) Checks/Promotions
+    0) no check
+    1) enemy king put into check
+    2) checkmate
+    3) pawn promotion (triggers special rules for future digits)
+3) Piece Moved (with identifier info)
+    If two pieces of the same type can make the same move, then there is an
+        identifier of either the rank or file of the correct piece to identify
+        which of the two pieces makes the move. This digit identifies
+        the piece moved AND the whether the identifier which follows is of the
+        rank of the file. This saves a digit, keeping it a 2 byte int in the
+        case of an identifier being present.
+    0) (K)ing
+    1) (Q)ueen (file identifier)
+    2) (Q)ueen (rank or no identifier)
+    3) (R)ook (file)
+    4) (R)ook (rank or no identifier)
+    5) (B)ishop (file)
+    6) (B)ishop (rank or no identifier)
+    7) k(N)ight (file)
+    8) k(N)ight (rank or no identifier)
+    9) (P)awn
+4) Rank/File identifier (0 if none) (see position 3)
+5) Destination Rank
+6) Destination File
+
+IN THE CASE OF PAWN PROMOTION:
+1) As Above
+2) 3, to signify pawn promotion
+3) Behaves like (2) above.
+    0) None
+    1) Check
+    2) Checkmate
+4) File Identifier - 1 (to prevent size increase to 4 byte int if file = 8)
+5) Promotion Details
+    Pawns either progress straight, or capture diagonally. Furthermore, they
+        can only promote on the back ranks (rank 8 for white, 1 for black).
+        This char stores which side promoted and which direction the movement
+        happened (straight, capture diagonol left, capture diagonol right).
+        This information is used to infer the destination file (saving a char)
+    0) White, straight
+    1) White, diag left
+    2) White, diag right
+    3) Black, straight
+    4) Black, diag left
+    5) Black, diag right
+6) Promoted Piece
+    There is a surprising num of bishop/rook promos, despite being objectively
+        worse than a queen except in very rare case of a queen forcing a draw.
+    1) Queen
+    2) Rook
+    3) Bishop
+    4) Knight
+'''

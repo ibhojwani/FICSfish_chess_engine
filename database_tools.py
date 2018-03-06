@@ -131,6 +131,7 @@ def initialize_db(path):
     conn.execute(moves_query)
 
     conn.commit()
+    conn.close()
 
     return None
 
@@ -154,7 +155,7 @@ def add_games(game_list, db, n):
 
     def build_move_query():
         ''' Builds query outline for move insert'''
-        return "INSERT INTO Moves(\n move,\n turn,\n gameID) VALUES ("  # string
+        return "INSERT INTO Moves(\n move,\n turn,\n gameID) VALUES ("
 
     j = 0
     game_query = build_game_query()
@@ -166,7 +167,7 @@ def add_games(game_list, db, n):
     for i, game in enumerate(game_list):
         j += 1
         # print % completion at intervals of 10% and every 9k moves
-        if (i % 9000 == 0) or (round(i/length*100, 2) % 10 == 0):
+        if (i % 9000 == 0) or (round(i/length*100, 3) % 10 == 0):
             print("..............{}%".format(round(i / length * 100)))
 
         # Ensures game starts with '[', which can be lost during splitting
@@ -191,8 +192,6 @@ def add_games(game_list, db, n):
         # Execute / commit in batches, as multirow inserts are faster.
         # Best freq depends: long query strings uses more RAM and can slow.
         if j == QUERY_FREQ:
-            # print(game_query[:-3] + ";")
-            # print(move_query[:-3] + ";")
             # Execute and commit queries
             try:
                 db.execute(game_query[:-3] + ";")
@@ -368,35 +367,6 @@ def clear_db(db):
     return None
 
 
-def calc_freq(test_file, db):
-    '''
-    Meant to return optimal db.execute() frequency, obsolete for now as we are
-    executing with every single game instead of as a batch of n games.
-    This function is probably buggy, as we've hardly used/tested it.
-    Inputs
-        test_file: string of games file path (indended to have ~1-5k games)
-        db: databse file path
-    returns: ideal number of games per db.execute() query, and prints graph
-    '''
-    times = {}
-    last_run = 0
-    # 1 - 79001 by inc of 1000
-    freqs = [x for x in list(range(80000))[1::1000]]
-
-    for freq in freqs:
-        while last_run < 60:
-            t1 = process_time()
-            populate_db(test_file, db)
-            t2 = process_time()
-
-            last_run = t2 - t1
-            times[freq] = last_run
-            clear_db(test_file)
-            print(freq, times[freq])
-
-    return min(times, key=times.get())
-
-
 def profile():
     '''
     Profiles populate_db and prints 15 slowest functions.
@@ -452,76 +422,4 @@ PRAGMA journal_mode = WAL
 sqlite_stat3
 analyze tools
 cProfile and pstats
-'''
-
-'''
-HOW THE MOVE->INTEGER ALGORITHM WORKS
-
-Each move is represented by a 2 byte signed integer. This saves quite a bit of
-space, as originally a move would be up to 7 bytes in length.
-
-The magnitude of the 2 byte integer must be less than 32767. Each char in this
-int (6 positions, including the sign) are assigned a different meaning.
-
-For the sake of the explanation, number each digit 1-6:
-+ 3 2 7 6 7 (2 byte integer max value)
-1 2 3 4 5 6 (position identifier #)
-
-The positions have the following significance:
-1) Captures
-    (+) signifies no capture was made in the move
-    (-) signifies a capture
-2) Checks/Promotions
-    0) no check
-    1) enemy king put into check
-    2) checkmate
-    3) pawn promotion (triggers special rules for future digits)
-3) Piece Moved (with identifier info)
-    If two pieces of the same type can make the same move, then there is an
-        identifier of either the rank or file of the correct piece to identify
-        which of the two pieces makes the move. This digit identifies
-        the piece moved AND the whether the identifier which follows is of the
-        rank of the file. This saves a digit, keeping it a 2 byte int in the
-        case of an identifier being present.
-    0) (K)ing
-    1) (Q)ueen (file identifier)
-    2) (Q)ueen (rank or no identifier)
-    3) (R)ook (file)
-    4) (R)ook (rank or no identifier)
-    5) (B)ishop (file)
-    6) (B)ishop (rank or no identifier)
-    7) k(N)ight (file)
-    8) k(N)ight (rank or no identifier)
-    9) (P)awn
-4) Rank/File identifier (0 if none) (see position 3)
-5) Destination Rank
-6) Destination File
-
-IN THE CASE OF PAWN PROMOTION:
-1) As Above
-2) 3, to signify pawn promotion
-3) Behaves like (2) above.
-    0) None
-    1) Check
-    2) Checkmate
-4) File Identifier - 1 (to prevent size increase to 4 byte int if file = 8)
-5) Promotion Details
-    Pawns either progress straight, or capture diagonally. Furthermore, they
-        can only promote on the back ranks (rank 8 for white, 1 for black).
-        This char stores which side promoted and which direction the movement
-        happened (straight, capture diagonol left, capture diagonol right).
-        This information is used to infer the destination file (saving a char)
-    0) White, straight
-    1) White, diag left
-    2) White, diag right
-    3) Black, straight
-    4) Black, diag left
-    5) Black, diag right
-6) Promoted Piece
-    There is a surprising num of bishop/rook promos, despite being objectively
-        worse than a queen except in very rare case of a queen forcing a draw.
-    1) Queen
-    2) Rook
-    3) Bishop
-    4) Knight
 '''
