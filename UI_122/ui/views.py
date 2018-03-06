@@ -26,10 +26,14 @@ def form_view(request):
             data = form.cleaned_data
             print(data)
             # do stuff with the data here
-
             return HttpResponse(data)
         else:
             return HttpResponse('Your input was incorrect. Please re-enter the values and click Submit.')
+            return HttpResponse(data)
+        else:
+            return HttpResponse('Your inputs were incorrect and the form cannot\
+                be processed. Please re-enter valid inputs.')
+
     if request.method == 'GET':
         form = SearchForm()
     return render(request, 'form.html', {'form': form})
