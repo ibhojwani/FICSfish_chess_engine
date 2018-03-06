@@ -9,12 +9,14 @@ import ui.filtering_db as filtering_db
 # Create your views here.
 
 class SearchForm(forms.Form):
-    BlackEloRangeStart = forms.IntegerField(min_value=600)
-    BlackEloRangeEnd = forms.IntegerField(max_value=3000)
-    WhiteEloRangeStart = forms.IntegerField(min_value=600)
-    WhiteEloRangeEnd = forms.IntegerField(max_value=3000)
+    BlackEloRangeStart = forms.IntegerField(min_value=600,required=False)
+    BlackEloRangeEnd = forms.IntegerField(max_value=3000,required=False)
+    WhiteEloRangeStart = forms.IntegerField(min_value=600,required=False)
+    WhiteEloRangeEnd = forms.IntegerField(max_value=3000,required=False)
+    NumPlaysCutoff = forms.IntegerField(min_value=0,required=False)
+    FirstPlay = forms.CharField(max_length=10,required=False)
+    GameList = forms.BooleanField(required=False) 
 
-    # TODO: extend is_valid method to do your own validation
 
 def form_view(request):
     # the user is loading the page
@@ -25,14 +27,9 @@ def form_view(request):
             print(data)
             # do stuff with the data here
 
-            filtered = models.Games.filter(BlackElo__gte=data['BlackEloRangeStart'],
-                                           BlackElo__lte=data['BlackEloRangeEnd'],
-                                           WhiteElo__gte=data['WhiteEloRangeStart'],
-                                           WhiteElo__lte=data['WhiteEloRangeEnd'])
-
             return HttpResponse(data)
         else:
-            return HttpResponse('your input was bad and you should feel bad')
+            return HttpResponse('Your input was incorrect. Please re-enter the values and click Submit.')
     if request.method == 'GET':
         form = SearchForm()
     return render(request, 'form.html', {'form': form})
