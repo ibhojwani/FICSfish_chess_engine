@@ -89,7 +89,10 @@ def return_best(conn, views, turn):
 
     print(best_move_query)
     rv = conn.execute(best_move_query, [-(-1)**turn_number, turn_number + 1]).fetchall()
-    return rv
+    if not rv:
+        return None
+    print(rv)
+    return translate_int_to_move(rv[0][0])
 
 
 def drop_views(views, conn):
