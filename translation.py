@@ -23,14 +23,15 @@ def translate_moves_to_int(moves):
             "8": 8}
 
     # split move string into individual moves
-    rounds = re.split(r" \w*\. ", moves[4:])
-    turns = []
-    for r in rounds:
-        turns += r.split(" ")  # this could be done in main loop to save time
-    int_turns = []
-
+    # rounds = re.split(r" \w*\. ", moves[4:])
+    # turns = []
+    # for r in rounds:
+    #     turns += r.split(" ")  # this could be done in main loop to save time
+    # int_turns = []
+    turns = [moves]
+    print(turns)
     # USE MORE DICTS for mapping?
-    for turn in turns[:-1]:
+    for turn in turns:
         orig_turn = turn
 
         # Castling. Nested IF to only do 1 check on all non castle moves
@@ -46,7 +47,7 @@ def translate_moves_to_int(moves):
             if "#" in turn:
                 move_int += 2
 
-            int_turns.append(move_int)  # castling long likewise gives 99
+            return move_int  # castling long likewise gives 99
             continue
 
         # initializes translation int
@@ -56,7 +57,7 @@ def translate_moves_to_int(moves):
         # pawn promotion and notation.
         try:
             if turn[0].islower():
-                int_turns.append(translate_pawns_helper(move_int, turn, maps))
+                return translate_pawns_helper(move_int, turn, maps)
                 continue
         except:
             print(orig_turn)
@@ -92,9 +93,9 @@ def translate_moves_to_int(moves):
             elif not potential_ident.isupper():  # signals rank identifier
                 move_int += 1000 + maps[potential_ident] * 100
 
-        int_turns.append(move_int)
+        return move_int
 
-    return int_turns
+    return move_int
 
 
 def checkmate_helper(turn):
@@ -256,6 +257,7 @@ def translate_int_to_move(int_turn):
 
 def translation_test(db, n=20, test_cases=None, v=False):
     '''
+    -----------OBSOLETE AS OF MOVES TABLE BEING ADDED TO DB----------
     Tests translation of all possible algebraic move formats. test_cases
     contains the algebraic notation of the file and the expected int notation.
     Inputs:

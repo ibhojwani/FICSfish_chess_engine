@@ -65,9 +65,11 @@ def return_best(conn, views, turn):
     turn_view_query = "CREATE VIEW valid_games_{} AS \
                         SELECT games.gameID, games.result FROM games\
                         JOIN moves ON moves.gameID=games.gameID\
-                        WHERE moves.turn = {} AND moves.move={}".format(str(turn_number), str(turn_number), str(int_turn))
+                        WHERE moves.turn = {} AND moves.move={};".format(str(turn_number), str(turn_number), str(int_turn))
+    print(turn_view_query)
     conn.execute(turn_view_query)
     views.append("valid_games_{}".format(turn_number))
+    print(views)
 
     # Build the intersection view
     intersect_query = "CREATE VIEW valid_games AS "
@@ -75,16 +77,19 @@ def return_best(conn, views, turn):
     for view in views:
         select_statements.append("SELECT * from {}".format(view))
     intersect_query += " INTERSECT ".join(select_statements) + ';'
+    print(intersect_query)
     conn.execute(intersect_query)
 
     best_move_query = "SELECT move FROM moves\
                        JOIN valid_games ON moves.gameID=valid_games.gameID \
-                       where valid_games.result = 1 \
-                       AND turn = 3 \
-                       GROUP BY move ORDER BY count(move) DESC \
-                       LIMIT 1"
+                       where valid_games.result = ? \
+                       AND moves.turn = ? LIMIT 1;"\
+                       #GROUP BY move LIMIT 10;" ORDER BY count(moves.move) DESC \
+                       # LIMIT 1;"
+
     print(best_move_query)
-    return conn.execute(best_move_query).fetchall()[0][0]
+    rv = conn.execute(best_move_query, [-(-1)**turn_number, turn_number + 1]).fetchall()
+    return rv
 
 
 def drop_views(views, conn):
