@@ -57,15 +57,16 @@ def return_best(conn, views, turn):
         turn: turn previously played
     '''
     turn_number = len(views) + 1
-
+    int_turn = translate_moves_to_int(turn)
+    conn.execute("DROP VIEW IF EXISTS valid_games;")
     # Each view represents games which contain the correct move for a certain
     # turn. By intersecting all views, you get the games which contain
     # the correct move for every turn so far.
-    turn_view_query = "CREATE VIEW valid_games_? AS \
+    turn_view_query = "CREATE VIEW valid_games_{} AS \
                         SELECT games.gameID, games.result FROM games\
                         JOIN moves ON moves.gameID=games.gameID\
-                        WHERE moves.turn = ? AND moves.move=?"
-    conn.execute(turn_view_query, [turn_number, turn_number, turn])
+                        WHERE moves.turn = {} AND moves.move={}".format(str(turn_number), str(turn_number), str(int_turn))
+    conn.execute(turn_view_query)
     views.append("valid_games_{}".format(turn_number))
 
     # Build the intersection view
@@ -82,9 +83,13 @@ def return_best(conn, views, turn):
                        AND turn = 3 \
                        GROUP BY move ORDER BY count(move) DESC \
                        LIMIT 1"
+    print(best_move_query)
     return conn.execute(best_move_query).fetchall()[0][0]
 
-    return None
+
+def drop_views(views, conn):
+    for view in views:
+        conn.execute("DROP VIEW IF EXISTS {};".format(view))
 
 
 def end_game(conn, views):
