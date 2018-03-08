@@ -16,7 +16,9 @@
       <input type="button" id="moveforme" value="Make move for me" />
       <input type="button" id="moves" value="output move" />
 
+
     <script>
+        var best_move = ""
         var board,
           game = new Chess()
 
@@ -48,6 +50,19 @@
         // for castling, en passant, pawn promotion
         var onSnapEnd = function() {
           board.position(game.fen());
+          var list_moves = game.history({verbose:true});
+          var alg = "";
+          for (i = 0; i < list_moves.length; i++){
+              alg += String(i+1) + ". " + list_moves[i].san + " "
+          }
+          $.ajax({
+              url: '{% url "move_generator" %}',
+              data: {moves: alg},
+              type: 'GET',
+              datatype: 'json',
+          }).done(function(data) {
+              best_move = data.m ;
+          })
         };
 
         var updateStatus = function() {
@@ -80,39 +95,28 @@
         };
 
         $('#moveforme').on('click', function() {
-            var list_moves = game.history({verbose: true});
-            var alg = "";
-            for (i = 0; i < list_moves.length; i++){
-                alg += String(i+1) + ". " + list_moves[i].san + " "
-            }
-            $.ajax({
-            url: '{% url "move_generator" %}',
-            data: {moves: alg},
-            type: 'GET',
-            dataType: 'json'
-        }).done(function(data) {
-            game.move(data.m);
+            game.move(best_move);
             updateStatus();
             board.position(game.fen());
-            });
-        });
-
-        $('#moves').on('click', function() {
-            var list_moves = game.history({verbose: true});
+            var list_moves = game.history({verbose:true});
             var alg = "";
             for (i = 0; i < list_moves.length; i++){
                 alg += String(i+1) + ". " + list_moves[i].san + " "
             }
             $.ajax({
-            url: '{% url "move_generator" %}',
-            data: {moves: alg},
-            type: 'GET',
-            dataType: 'json'
-        }).done(function(data) {
-            alert(data.m);
-            });
+                url: '{% url "move_generator" %}',
+                data: {moves: alg},
+                type: 'GET',
+                datatype: 'json',
+            }).done(function(data) {
+                best_move = data.m ;
+            })
         });
 
+
+        $('#moves').on('click', function() {
+            alert(best_move)
+        });
 
         var cfg = {
           draggable: true,
@@ -124,44 +128,7 @@
         board = ChessBoard('board', cfg);
 
         updateStatus();
-    /*
-        var game = new Chess();
-        var onDragMove = function(newLocation, oldLocation, source,
-                                  piece, position, orientation) {
-          console.log("New location: " + newLocation);
-          console.log("Old location: " + oldLocation);
-          console.log("Source: " + source);
-          console.log("Piece: " + piece);
-          console.log("Position: " + ChessBoard.objToFen(position));
-          console.log("Orientation: " + orientation);
-          console.log("--------------------");
-          game.move({from: oldLocation, to: newLocation});
 
-        };
-
-        $('#History').on('click', function() {
-            var list_moves = game.history({verbose: true});
-            var alg = "";
-            for (i = 0; i < list_moves.length; i++){
-                if (list_moves[i].captured != null){
-                    alg += String(i+1) + ". " + list_moves[i].san + " "
-                } else if (list_moves[i].piece == 'p'){
-                    alg += String(i+1) + ". " + list_moves[i].from + " " + list_moves[i].to + " ";
-                } else {
-                    alg += String(i+1) + ". " + list_moves[i].piece + list_moves[i].from + " " + list_moves.to + " ";
-                }
-            }
-            console.log("moves: " + alg)
-        });
-
-
-        var cfg = {
-          draggable: true,
-          position: 'start',
-          onDragMove: onDragMove,
-        };
-        var board = ChessBoard('board', cfg);
-    */
     </script>
   </body>
 </html>
