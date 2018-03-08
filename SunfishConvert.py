@@ -5,9 +5,17 @@ given = "1. e4 c5 2. f4 e6 3. Nf3 Nc6 4. d3 d5 \
 5. e5 Qa5+ 6. c3 Nh6 7. Be2 Be7 8. O-O O-O 9. Re1 Qb6 10. \
 Nbd2 c4+ 11. d4 Nf5 12. Nf1 Bd7 13. g4 Nh4 14. Kh1 Nxf3 15. \
 Bxf3 Bh4 16. Re2 Rad8 17. Rg2 a6 18. Ng3 Ne7 19. \
-Nh5 Qa5 20. Bd2 Qb5 21. Be1 Bxe1 22. Qxe1 h6 23. g5 hxg5 24. \
+Nh5 Qa5 20. Bd2 Qb5 21. Be1 Bxe1 \ 22. Qxe1 h6 23. g5 hxg5 24. \
 Rxg5 Ng6 25. Qg3 Qxb2 26. Rg1 Qxc3 27. Nf6+ gxf6 28. Rxg6+ \
 fxg6 29. Qxg6+ Kh8 30. Qh6# {Black checkmated} 1-0"
+
+desired = ["e2e4", "c7c5", "f2f4", "e7e6", "g1f3", "b8c6", "d2d3", "d7d5", \
+"e4e5", "d8a5", "c2c3", "g8h6", "f1e2", "f8e7", "e1g1", "e8g8", "f1e1", "a5b6",\
+"b1d2", "c5c4", "d3d4", "h6f5", "d2f1", "c8d7", "g2g4", "f5h4", "g1h1",\
+"h4f3", "e2f3", "e7h4", "e1e2", "a8d8", "e2g2", "a7a6", "f1g3", "c6e7",\
+"g3h5", "b6a5", "c1d2", "a5b5", "d2e1", "h4e1", "d1e1", "h7h6", "g4g5", "h6g5",\
+"g2g5", "e7g6", "e1g3", "b5b2", "a1g1", "b2c3", "h5f6", "g7f6", "g5g6",\
+"f7g6", "g3g6", "g8h8", "g6h6"]
 
 LETTERS = ["a", "b", "c", "d", "e", "f", "g", "h"]
 DIAGONAL = [9, 11, -9, -11]
@@ -39,9 +47,9 @@ def isolate_string(string):
 	'''
 	con = string.split(".")
 	rv = []
-	for move in con:
-		sub = re.findall(r"[A-z]+\d|O-O|O-O-O", move)
-		rv.extend(sub)
+	for section in con:
+		move = re.findall(r"[A-z]+\d|O-O|O-O-O", section)
+		rv.extend(move)
 	return(rv)
 
 def divide_players():
@@ -63,7 +71,7 @@ def divide_players():
 	print("player2")
 	print(player2)
 
-def convert_position(position):
+def alg_to_int(position):
 	'''
 	Turns algebraic notation into an integer value representing
 	the same position on the board
@@ -74,7 +82,13 @@ def convert_position(position):
 	pos = horizontal + vertical
 	return(pos)
 
-class piece(object):
+def int_to_alg(coordinate):
+	row = str(coordinate // 10)
+	column_index = coordinate % 10
+	column = LETTERS[column_index - 1]
+	return column + row
+
+class Piece(object):
 	def __init__(self, label, past_moves, current_pos, movements, 
 		unlimited, player):
 
@@ -85,72 +99,64 @@ class piece(object):
 		self.unlimited = unlimited #Boolean
 		self.player = player #String 
 
+def create_piece(label, position, movements, unlimited):
+	pieces = []
+	i = 0
+	for slot in position:
+		if i % 2 == 0:
+			white = Piece(label, 0, slot, movements, unlimited, "White")
+			pieces.append(white)
+			i += 1
+		elif i %2 == 1:
+			black = Piece(label, 0, slot, movements, unlimited, "Black")
+			pieces.append(black)
+			i += 1
+	return(pieces)
+
 def create_knights():
 	movements = [19, 21, 8, 12, -19, -21, -8, -12]
+	positions = [("b1", 12), ("b8", 82), ("g1", 17), ("g8", 87)]
 
-	knight1White = piece("N", 0, ("b1", 12), movements, False, "White")
-	knight2White = piece("N", 0, ("g1", 17), movements, False, "White")
-	knight1Black = piece("N", 0, ("b8", 82), movements, False, "Black")
-	knight2Black = piece("N", 0, ("g8", 87), movements, False, "Black")
-
-	return [knight1White, knight2White, knight2Black, knight1Black]
+	return create_piece("N", positions, movements, False)
 
 def create_rooks():
 	movements = UP + DOWN + SIDE
+	positions = [("a1", 11), ("a8", 81), ("h1", 18), ("h8", 88)]
 
-	rook1White = piece("R", 0, ("a1", 11), movements, True, "White")
-	rook2White = piece("R", 0, ("h1", 18), movements, True, "White")
-	rook1Black = piece("R", 0, ("a8", 81), movements, True, "Black")
-	rook2Black = piece("R", 0, ("h8", 88), movements, True, "Black")
+	return create_piece("R", positions, movements, True)
 
-	return [rook1White, rook1Black, rook2White, rook2Black]
 
 def create_bishops():
-	movements = DIAGONAL
-	bishop1White = piece("B", 0, ("c1", 13), movements, True, "White")
-	bishop2White = piece("B", 0, ("f1", 16), movements, True, "White")
-	bishop1Black = piece("B", 0, ("c8", 83), movements, True, "Black")
-	bishop2Black = piece("B", 0, ("f8", 86), movements, True, "Black")
+	positions = [("c1", 13), ("c8", 83), ("f1", 16), ("f8", 86)]
 
-	return [bishop1White, bishop2White, bishop1Black, bishop2Black]
+	return create_piece("B", positions, DIAGONAL, True)
+
 
 def create_pawns():
-	movements = UP
+	positions = [("a2", 21), ("a7", 71), ("b2", 22), ("b7", 72), ("c2", 23), ("c7", 73), ("d2", 24), \
+	("d7", 74), ("e2", 25), ("e7", 75), ("f2", 26), ("f7", 76), ("g2", 27), ("g7", 77), ("h2", 28),("h7", 78)]
 
-	pawn1White = piece("P", 0, ("a2", 21), movements, False, "White")
-	pawn2White = piece("P", 0, ("b2", 22), movements, False, "White")
-	pawn3White = piece("P", 0, ("c2", 23), movements, False, "White")
-	pawn4White = piece("P", 0, ("d2", 24), movements, False, "White")
-	pawn5White = piece("P", 0, ("e2", 25), movements, False, "White")
-	pawn6White = piece("P", 0, ("f2", 26), movements, False, "White")
-	pawn7White = piece("P", 0, ("g2", 27), movements, False, "White")
-	pawn8White = piece("P", 0, ("h2", 28), movements, False, "White")
+	return create_piece("P", positions, UP, False)
 
-	pawn1Black = piece("P", 0, ("a7", 71), movements, False, "Black")
-	pawn2Black = piece("P", 0, ("b7", 72), movements, False, "Black")
-	pawn3Black = piece("P", 0, ("c7", 73), movements, False, "Black")
-	pawn4Black = piece("P", 0, ("d7", 74), movements, False, "Black")
-	pawn5Black = piece("P", 0, ("e7", 75), movements, False, "Black")
-	pawn6Black = piece("P", 0, ("f7", 76), movements, False, "Black")
-	pawn7Black = piece("P", 0, ("g7", 77), movements, False, "Black")
-	pawn8Black = piece("P", 0, ("h7", 78), movements, False, "Black")
-
-	return [pawn1White, pawn2White, pawn3White, pawn4White, 
-	pawn5White, pawn6White, pawn7White, pawn8White,
-	pawn1Black, pawn2Black, pawn3Black, pawn4Black,
-	pawn5Black, pawn6Black, pawn7Black, pawn8Black]
 
 def create_kings():
-
-	kingWhite = piece("K", 0, ("e1", 15), FREE_MOVEMENT, False, "White")
-	kingBlack = piece("K", 0, ("e8", 85), FREE_MOVEMENT, False, "Black")
-	return [kingWhite, kingBlack]
+	positions = [("e1", 15), ("e8", 85)]
+	return create_piece("K", positions, FREE_MOVEMENT, False)
 
 def create_queens():
-	
-	queenWhite = piece("Q", 0, ("d1", 14), FREE_MOVEMENT, True, "White")
-	queenBlack = piece("Q", 0, ("d8", 84), FREE_MOVEMENT, True, "Black")
-	return [queenWhite, queenBlack]
+	positions = [("d1", 14), ("d8", 84)]
+	return create_piece("Q", positions, FREE_MOVEMENT, True)
+
+def create_board():
+	board = []
+	board.extend(create_pawns())
+	board.extend(create_rooks())
+	board.extend(create_knights())
+	board.extend(create_bishops())
+	board.extend(create_kings())
+	board.extend(create_queens())
+	return(board)
+
 
 def pawn_to_queen(new_space, player, board):
 	'''
@@ -164,7 +170,7 @@ def pawn_to_queen(new_space, player, board):
 	sunfish_move = prev_pos + new_space
 	for piece in board:
 		if piece.player == player and piece.label == "P" and piece.current_pos[0] == prev_pos:
-			board.append(piece("Q", piece.past_moves, piece.current_pos, FREE_MOVEMENT, True, piece.player))
+			board.append(Piece("Q", piece.past_moves, piece.current_pos, FREE_MOVEMENT, True, piece.player))
 			board.remove(piece)
 			return(sunfish_move)
 
@@ -193,10 +199,10 @@ def castling(castle, player, board):
 			rook.past_moves += 1
 
 		elif castle == "O-O-O":
-			sunfish_move = "e1b1"
-			king.current_pos = ("b1", 12)
+			sunfish_move = "e1c1"
+			king.current_pos = ("c1", 12)
 			king.past_moves += 1
-			rook.current_pos = ("c1", 13)
+			rook.current_pos = ("d1", 13)
 			rook.past_moves += 1
 	elif player == "Black":
 		if castle == "O-O":
@@ -206,59 +212,91 @@ def castling(castle, player, board):
 			rook.current_pos = ("f8", 86)
 			rook.past_moves += 1
 		elif castle == "O-O-O":
-			sunfish_move = "e8b8"
-			king.current_pos = ("b8", 82)
+			sunfish_move = "e8c8"
+			king.current_pos = ("c8", 82)
 			king.past_moves += 1
-			rook.current_pos = ("c8", 83)
+			rook.current_pos = ("d8", 83)
 			rook.past_moves += 1
 
 	board.append(king)
 	board.append(rook)
 	return(sunfish_move)
 
-def capture_piece(position, label, turn, board):
-	for piece in board:
-		pass
+def strip_move(move, board):
+	name = "P"
+	row = None
+	if len(move) == 2:
+		return move, name, row
+	elif len(move) == 3:
+		name  = move[0]
+		position =  move[1:3]
+		return position, name, row
 
-def convert_string(take, turn, board):
+	elif len(move) == 4:		
+		if move[1] == "x":
+			if move[0].isupper():
+				name = move[0]
+				position = move[2:4]
+				capture(position, board)
+				return position, name, row
+			else:
+				row = move[0]
+				position = move[2:4]
+				capture(position, board)
+				return position, name, row
+		else:
+			name = move[0]
+			position = move[2:4]
+			row = move[1]
+			return position, name, row
+	elif len(move) == 5:
+		name = move[0]
+		row = move[1]
+		position = move[3:5]
+		capture(position, board)
+		return position, name, row
+
+def capture(position, board):
+	for piece in board:
+		if piece.current_pos[0] == position:
+			board.remove(piece)
+
+
+def convert_string(move, turn, board):
 
 	players = ["White", "Black"]
 	current_player = players[turn%2]
-	check = "P"
+	name = "P"
+	point = 0
 
-	for position in take:
+	if move == "O-O" or move == "O-O-O":
+		return(castling(move, current_player, board))
+	'''
+	name to see if the piece is a pawn. 
+	Assumes that the string will distinguish non-pawns.
+	This section standardizes the string
+	'''
+	position, name, row = strip_move(move, board)
+	point = alg_to_int(position)
 
-		if position == "O-O" or position == "O-O-O":
-			return(castling(position, current_player, board))
+	if len(move) == 4:
 		'''
-		Check to see if the piece is a pawn. 
-		Assumes that the string will distinguish non-pawns.
-		This section standardizes the string
+		NOTE: name different string endings
+		MAY NOT END WITH LETTER
+		Checks to find pawn promotion.
+		Assumes pawn promotion is written in the a7=Q format
 		'''
-		if len(position) == 2:
-			point = convert_position(position)
-		if len(position) == 3:
-			if position[-1] == "+":
+		if move[-1] == "Q":
+			return(pawn_to_queen(move, current_player, board))
+
+	for piece in board:
+		'''
+		Iterates through pieces in a board to see which can make the given move.
+		'''
+		if piece.label == name and piece.player == current_player:
+			if row and piece.current_pos[0][0] != row:
 				pass
-				
 			else:
-				check = position[0]
-				position = position[1:3]
-				point = convert_position(position)
-
-		if len(position) == 4:
-			'''
-			Checks to find pawn promotion.
-			Assumes pawn promotion is written in the a7=Q format
-			'''
-			if position[-1] == "Q":
-				return(pawn_to_queen(position, current_player, board))
-
-		for piece in board:
-			'''
-			Iterates through pieces in a board to see which can make the given move.
-			'''
-			if piece.label == check and piece.player == current_player:	
 				#Filters based on specified player and piece			
 				coordinate = piece.current_pos[1]
 				
@@ -266,10 +304,9 @@ def convert_string(take, turn, board):
 				The next if/elif statements "reverses" the board based on player
 				'''
 				if piece.player == "Black":
-					move = coordinate - point
+					movement = coordinate - point
 				elif piece.player =="White":
-					move = point - coordinate
-
+					movement = point - coordinate
 
 				if piece.unlimited == False:
 					'''
@@ -277,46 +314,46 @@ def convert_string(take, turn, board):
 					look through the list of moves to see if the piece
 					can make the desired move.
 					'''
-					if move in piece.movements:
+					if movement in piece.movements:
 						sunfish_move = piece.current_pos[0] + position
 						piece.current_pos = (position, point)
 						piece.past_moves += 1
 						return(sunfish_move)
 						
-					elif piece.label == "P" and piece.past_moves == 0:
+					elif piece.label == "P":
 						#Option to move forward two spaces
-						if move == 20:
+						if movement == 20 and piece.past_moves == 0:
 							sunfish_move = piece.current_pos[0] + position
 							piece.current_pos = (position, point)
 							piece.past_moves += 1
 							return(sunfish_move)
+						elif move[1] == "x":
+							if movement == 9 or movement == 11:
+								sunfish_move = piece.current_pos[0] + position
+								piece.current_pos = (position, point)
+								piece.past_moves += 1
+								return(sunfish_move)
 							
 
 				elif piece.unlimited == True:
 					for factor in piece.movements:
 						blocked = False
 						test = 0
-						if move % factor == 0 and (move // factor) < 10:
-							if (move // factor) < 0:
-								move *= -1
-
-							for i in range(1, (move // factor) +1):
-								print("made it")
+						if movement % factor == 0 and (movement // factor) < 10:
+							if (movement // factor) < 0:
+								factor *= -1
+							for i in range(1, (movement // factor) +1):
 								change = i * factor
-								print("change")
-								print(piece.player)
+
 								if piece.player == "White":
 									test = piece.current_pos[1] + change
 								elif piece.player == "Black":
 									test = piece.current_pos[1] - change
 								for subpiece in board:
-									print(subpiece.current_pos, test)
 									if subpiece != piece and subpiece.current_pos[1] == test:
-										print("now its blocked")
 										blocked = True
+									
 							if not blocked:
-								print(blocked)
-								print(piece.current_pos, "not blocked")
 								sunfish_move = piece.current_pos[0] + position
 								piece.current_pos = (position, test)
 								return(sunfish_move)							
@@ -328,27 +365,40 @@ def test(old_positions):
 	Goes through list of moves and converts to sunfish
 	'''
 	take = isolate_string(old_positions)
-	board = create_pawns()
-	board.extend(create_knights())
-	board.extend(create_bishops())
-	board.extend(create_queens())
-	board.extend(create_kings())
-	board.extend(create_rooks())
+	board = create_board()
 
 	converted_moves = []
 	turn = 0
 	for move in take:
-		converted_moves.append(convert_string([move], turn, board))
+		converted_moves.append(convert_string(move, turn, board))
 		turn += 1
+
 	return converted_moves
+	#return board
+
+def played_board(old_positions):
+	take = isolate_string(old_positions)
+	board = create_board()
+	turn = 0
+
+	for move in take:
+		convert_string(move, turn, board)
+		turn += 1
+
+	return board
 
 def test2(st, board):
-	x = convert_string([st], 0, board)
+	x = convert_string(st, 0, board)
 	print(x)
 
+def check(old_positions):
+	base = isolate_string(old_positions)
+	cm = test(old_positions)
+	check = []
+	for i in range(0, len(cm)):
+		if cm[i] == desired[i]:
+			pass
+		else:
+			check.append((False))
 
-
-
-
-
-
+	print(check)
