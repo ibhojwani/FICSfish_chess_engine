@@ -7,7 +7,7 @@ import sqlite3
 import re
 
 
-def translate_moves_to_int(moves):
+def translate_moves_to_int(moves, ls=False):
     '''
     Parses moves. Has to be fast. Indexing is avoided as much as possible, as
     is regex, for speed. Turns all moves into a signed 2 byte integer
@@ -22,14 +22,16 @@ def translate_moves_to_int(moves):
             "h": 80, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7,
             "8": 8}
 
-    # split move string into individual moves
-    # rounds = re.split(r" \w*\. ", moves[4:])
-    # turns = []
-    # for r in rounds:
-    #     turns += r.split(" ")  # this could be done in main loop to save time
-    # int_turns = []
-    turns = [moves]
-    print(turns)
+    if ls:
+        # split move string into individual moves
+        rounds = re.split(r" \w*\. ", moves[3:])
+        turns = []
+        for r in rounds:
+            turns += r.split(" ")  # this could be done in main loop to save time
+    else:
+        turns = [moves]
+    int_turns = []
+
     # USE MORE DICTS for mapping?
     for turn in turns:
         orig_turn = turn
@@ -46,8 +48,7 @@ def translate_moves_to_int(moves):
                 move_int += 1
             if "#" in turn:
                 move_int += 2
-
-            return move_int  # castling long likewise gives 99
+            int_turns.append(move_int)
             continue
 
         # initializes translation int
@@ -57,7 +58,7 @@ def translate_moves_to_int(moves):
         # pawn promotion and notation.
         try:
             if turn[0].islower():
-                return translate_pawns_helper(move_int, turn, maps)
+                int_turns.append(translate_pawns_helper(move_int, turn, maps))
                 continue
         except:
             print(orig_turn)
@@ -93,9 +94,12 @@ def translate_moves_to_int(moves):
             elif not potential_ident.isupper():  # signals rank identifier
                 move_int += 1000 + maps[potential_ident] * 100
 
-        return move_int
+        int_turns.append(move_int)
 
-    return move_int
+    if len(int_turns) > 50:
+        return int_turns[:50]
+
+    return int_turns
 
 
 def checkmate_helper(turn):

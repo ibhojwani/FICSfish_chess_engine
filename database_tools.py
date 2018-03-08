@@ -321,7 +321,7 @@ def pull_info(game, file_flag=False):
         split = line.split(' "')
         if split[0][1:] in INFO_TO_PULL:
             game_info[split[0][1:]] = split[1][:-2]
-    game_info["Moves"] = '"' + re.sub(r"{.*", "", line_list[-1]) + '"'
+    game_info["Moves"] = re.sub(r" {.*", "", line_list[-1])
 
     return tweak_info(game_info)
 
@@ -364,7 +364,10 @@ def tweak_info(game_info):
             convert_to_int(key)
 
     # Translates moves into a list of 2 byte ints
-    game_info["Moves"] = translate_moves_to_int(game_info["Moves"])[:50]
+    if not game_info["Moves"]:
+        game_info = None
+        return game_info
+    game_info["Moves"] = translate_moves_to_int(game_info["Moves"], ls=True)
 
     if game_info["PlyCount"] < 5:
         game_info = None
