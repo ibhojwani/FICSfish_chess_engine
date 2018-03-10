@@ -7,10 +7,11 @@ Author(s): Ishaan Bhojwani
 import re
 import sqlite3
 import os
-from time import time, process_time
+from time import time
 from translation import translate_int_to_move, translate_moves_to_int
 from cProfile import run
 from pstats import Stats
+from numpy import random
 
 '''
 TODO
@@ -22,6 +23,7 @@ storing past moves?
 Only include winning moves?
 filter on join?
 take re from sunfishconvert
+build cursor?
 '''
 
 # information to pull from the pgn file
@@ -48,7 +50,7 @@ INDICES = [("IX_Move", "Moves", ["Turn", "Move", "GameID"])]
 QUERY_FREQ = 250
 
 
-def return_best(conn, views, turn):
+def return_best(conn, filters, move=None):
     '''
     Takes a move, creates viewreturns the best move and creates relevent views
     Inputs:
@@ -56,60 +58,69 @@ def return_best(conn, views, turn):
         views: list of names of current existing views for past turns
         turn: turn previously played
     '''
-    turn_number = len(views) + 1
-    int_turn = translate_moves_to_int(turn)
-    conn.execute("DROP VIEW IF EXISTS valid_games;")
-    # Each view represents games which contain the correct move for a certain
-    # turn. By intersecting all views, you get the games which contain
-    # the correct move for every turn so far.
-    turn_view_query = "CREATE VIEW valid_games_{} AS \
-                        SELECT games.gameID, games.result FROM games\
-                        JOIN moves ON moves.gameID=games.gameID\
-                        WHERE moves.turn = {} AND moves.move={};".format(str(turn_number), str(turn_number), str(int_turn))
-    print(turn_view_query)
-    conn.execute(turn_view_query)
-    views.append("valid_games_{}".format(turn_number))
-    print(views)
+    move_number = len(filters) + 1
 
-    # Build the intersection view
-    intersect_query = "CREATE VIEW valid_games AS "
-    select_statements = []
-    for view in views:
-        select_statements.append("SELECT * from {}".format(view))
-    intersect_query += " INTERSECT ".join(select_statements) + ';'
-    print(intersect_query)
-    conn.execute(intersect_query)
+    if move_number == 1:
+        query = "SELECT move, count(move) \n\
+                FROM moves\n\
+                WHERE turn=1\n\
+                GROUP BY move\n\
+                LIMIT 10;"
+        move = pick_move(conn.execute(query).fetchall())
+        fil = "(moves.turn = {} AND moves.move = {})".format(move_number,
+                                                             move)
+        filters.append(fil)
+        return translate_int_to_move(move)
 
-    best_move_query = "SELECT move FROM moves\
-                       JOIN valid_games ON moves.gameID=valid_games.gameID \
-                       where valid_games.result = ? \
-                       AND moves.turn = ? LIMIT 1;"\
-                       #GROUP BY move LIMIT 10;" ORDER BY count(moves.move) DESC \
-                       # LIMIT 1;"
+    int_move = translate_moves_to_int(move)[0]
+    fil = "(moves.turn = {} AND moves.move = {})".format(move_number,
+                                                         int_move)
+    filters.append(fil)
+    where = "\n OR ".join(filters) + "\n"
+    query = "SELECT moves.move, count(moves.move)\n\
+             FROM moves\n\
+             JOIN (\n\
+                SELECT gameID, result\n\
+                FROM (\n\
+                    SELECT moves.gameid, count(moves.gameid) AS ct, result\n\
+                    FROM moves\n\
+                    JOIN games\n\
+                        ON moves.gameID = games.gameID\n\
+                    WHERE\n\
+                        {}\n\
+                    GROUP BY moves.gameid)\n\
+                WHERE ct = ?) as valid\n\
+             ON moves.gameID=valid.gameID\n\
+             WHERE\n\
+                moves.turn=?\n\
+                AND valid.result = ?\n\
+             GROUP BY moves.move;".format(where)
+    params = [move_number - 1, move_number, -(-1)**move_number]
 
-    print(best_move_query)
-    rv = conn.execute(best_move_query, [-(-1)**turn_number, turn_number + 1]).fetchall()
-    if not rv:
+    print(query, "\n", params)
+    results = conn.execute(query, params).fetchall()
+    print(results)
+
+    if not results:
         return None
-    print(rv)
-    return translate_int_to_move(rv[0][0])
+
+    return translate_int_to_move(pick_move(results))
 
 
-def drop_views(views, conn):
-    for view in views:
-        conn.execute("DROP VIEW IF EXISTS {};".format(view))
+def pick_move(query_results):
+    moves = []
+    probs = []
+    for pair in query_results:
+        moves.append(pair[0])
+        probs.append(pair[1])
+
+    probs = [p/sum(probs) for p in probs]
+    move = random.choice(moves, p=probs)
+
+    return move
 
 
-def end_game(conn, views):
-    '''
-    Resets the database for future games by dropping views to avoid clutter.
-    '''
-    for view in views:
-        conn.execute("DROP VIEW ?;", [view])
-    return None
-
-
-def populate_db(games_file, db, unique=True, n=None, query_freq=QUERY_FREQ):
+def populate_db(games_file, db, unique=True, n=None):
     '''
     Populates the database with a list of games.
     input:
