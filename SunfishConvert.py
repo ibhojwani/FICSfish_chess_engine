@@ -25,6 +25,8 @@ Nh5 Qa5 20. Bd2 Qb5 21. Be1 Bxe1 \ 22. Qxe1 h6 23. g5 hxg5 24. \
 Rxg5 Ng6 25. Qg3 Qxb2 26. Rg1 Qxc3 27. Nf6+ gxf6 28. Rxg6+ \
 fxg6 29. Qxg6+ Kh8 30. Qh6# {Black checkmated} 1-0"
 
+t = "e4 e6 e5 d5 exd6e.p."
+
 desired = ["e2e4", "c7c5", "f2f4", "e7e6", "g1f3", "b8c6", "d2d3", "d7d5", \
 "e4e5", "d8a5", "c2c3", "g8h6", "f1e2", "f8e7", "e1g1", "e8g8", "f1e1", "a5b6",\
 "b1d2", "c5c4", "d3d4", "h6f5", "d2f1", "c8d7", "g2g4", "f5h4", "g1h1",\
@@ -50,6 +52,7 @@ as well as the common a-h, 1-8 notation.
 '''
 
 LETTERS = ["a", "b", "c", "d", "e", "f", "g", "h"]
+KNIGHT_MOVEMENT = [19, 21, 8, 12, -19, -21, -8, -12]
 DIAGONAL = [9, 11, -9, -11] 
 UP = [10]
 DOWN = [-10]
@@ -67,12 +70,7 @@ def isolate_string(string):
     Returns:
         A list of strings
     '''
-    con = string.split(".")
-    rv = []
-    for section in con:
-        move = re.findall(r"[A-z]+\d|O-O|O-O-O", section)
-        rv.extend(move)
-    return(rv)
+    return re.findall(r"[A-z]+\d+[A-z]*|O-O|O-O-O", string)
 
 
 def alg_to_int(position):
@@ -152,7 +150,7 @@ def create_knights():
     '''
     Creates the four knight pieces for the starting board as a list
     '''
-    movements = [19, 21, 8, 12, -19, -21, -8, -12]
+    movements = KNIGHT_MOVEMENT
     positions = [("b1", 12), ("b8", 82), ("g1", 17), ("g8", 87)]
 
     return create_piece("N", positions, movements, False)
@@ -215,38 +213,57 @@ def create_board():
     return(board)
 
 
-def pawn_to_queen(new_space, player, board):
+def pawn_to_queen(new_space, player, label, board):
     '''
-    Promotes a pawn to a queen
+    Promotes a pawn to a given Piece type
     '''
-    if new_space[1] == "8": 
+    if new_space[1] == "8": #Find the previous position
         add = "7"
     elif new_space[1] == "1":
         add = "2"
-    prev_pos = new_space[0] + add
+
+    prev_pos = new_space[0] + add 
     sunfish_move = prev_pos + new_space
+
     for piece in board:
+    #Look for the pawn being promoted and promote
         if piece.player == player and piece.label == "P" and piece.current_pos[0] == prev_pos:
-            board.append(Piece("Q", piece.past_moves, piece.current_pos, FREE_MOVEMENT, True, piece.player))
+            if label == "Q":
+                board.append(Piece("Q", piece.past_moves, piece.current_pos, FREE_MOVEMENT, True, piece.player))                
+            elif label == "N":
+                board.append(Piece("N", piece.past_moves, piece.current_pos, KNIGHT_MOVEMENT, False, piece.player))
+            elif label == "R":
+                movement = UP + DOWN + SIDE
+                board.append(Piece("R", piece.past_moves, piece.current_pos, movement, True, piece.player))
+            elif label == "B":
+                board.append(Piece("B", piece.past_moves, piece.current_pos, DIAGONAL, True, piece.player))
             board.remove(piece)
             return(sunfish_move)
 
 def castling(castle, player, board):
-    rooks = []
+    '''
+    This function allows for the castling move.
+    It looks for the king and rook being moved and then moves
+    them to their new locations.
+    '''
     rook = ""
     for piece in board:
         if piece.player == player:
-            if piece.label == "K":
+            if piece.label == "K": #Create copy and remove original
                 king = piece
                 board.remove(piece)
             elif piece.label == "R":
                 if castle == "O-O" and piece.current_pos[0][0] == "h":
+                #Finds the rook being moved
                     rook = piece
                     board.remove(piece)
                 elif castle =="O-O-O" and piece.current_pos[0][0] == "a":
                     rook = piece
                     board.remove(piece)
-
+    '''
+    The next part of the code moves the king and rook based on 
+    the player and the castling side.
+    '''
     if player == "White":
         if castle == "O-O":
             sunfish_move = "e1g1"
@@ -280,6 +297,11 @@ def castling(castle, player, board):
     return(sunfish_move)
 
 def strip_move(move, board):
+    '''
+    This function takes the necessary data from a given move 
+    based on the length and special characteristics
+    of the move string inputted.
+    '''
     name = "P"
     row = None
     if len(move) == 2:
@@ -314,7 +336,15 @@ def strip_move(move, board):
         return position, name, row
 
 def capture(position, board):
-    for piece in board:
+    '''
+    Removes a Piece object at a given position
+    from the board
+
+    Inputs:
+        position: a string representing a square on the board
+        board: A list of Piece objects
+    '''
+    for piece in board: 
         if piece.current_pos[0] == position:
             board.remove(piece)
 
@@ -333,27 +363,46 @@ def convert_string(move, turn, board):
     Assumes that the string will distinguish non-pawns.
     This section standardizes the string
     '''
+
+    if move[-2] == "=":
+        return(pawn_promo(move, current_player, move[-1], board))
+
+    for piece in board:
+        if piece.current_pos[0] == "e5":
+            print("still there")
+
+    if move[-1] == "e":
+        print("en passant")
+        row = move[0]
+        for piece in board:
+            if piece.current_pos[0] == "e5":
+                print("still there")
+        last_space = ""
+        new_pos = alg_to_int(move[2:4])
+        captured_piece = new_pos - 10
+        print(current_player)
+        for piece in board:
+            if piece.current_pos[0] == "e5":
+                piece.current_pos = (move[2:4], new_pos)
+                piece.past_moves += 1
+                last_space = piece.current_pos[0]
+            elif piece.current_pos[1] == captured_piece:
+                board.remove(piece)
+        sunfish_move = last_space + move[2:4]
+        return(sunfish_move)
+
     position, name, row = strip_move(move, board)
+    print(position)
     point = alg_to_int(position)
 
-    if len(move) == 4:
-        '''
-        NOTE: name different string endings
-        MAY NOT END WITH LETTER
-        Checks to find pawn promotion.
-        Assumes pawn promotion is written in the a7=Q format
-        '''
-        if move[-1] == "Q":
-            return(pawn_to_queen(move, current_player, board))
     for piece in board:
-
         if piece.label == name and piece.player == current_player:
-            if row and piece.current_pos[0][0] != row:
+            #Check for row filter condition
+            if row and piece.current_pos[0][0] != row: 
                 pass
             else:
-                #Filters based on specified player and piece
-                coordinate = piece.current_pos[1]
-    
+                #Filter based on specified player and piece
+                coordinate = piece.current_pos[1]   
                 '''
                 The next if/elif statements "reverses" the board based on player
                 '''
@@ -366,7 +415,7 @@ def convert_string(move, turn, board):
                     '''
                     If the piece has a limited number of moves, 
                     look through the list of moves to see if the piece
-                    can make the desired move.
+                    can make the desired move and move it if so.
                     '''
                     if movement in piece.movements:
                         sunfish_move = piece.current_pos[0] + position
@@ -374,7 +423,7 @@ def convert_string(move, turn, board):
                         piece.past_moves += 1
                         return(sunfish_move)
                     
-                    elif piece.label == "P":
+                    elif piece.label == "P": #Pawn has special moves
                         #Option to move forward two spaces
                         if movement == 20 and piece.past_moves == 0:
                             sunfish_move = piece.current_pos[0] + position
@@ -386,8 +435,7 @@ def convert_string(move, turn, board):
                                 sunfish_move = piece.current_pos[0] + position
                                 piece.current_pos = (position, point)
                                 piece.past_moves += 1
-                                return(sunfish_move)
-                    
+                                return(sunfish_move)                   
 
                 elif piece.unlimited == True:
                     for factor in piece.movements:
@@ -425,7 +473,8 @@ def played_board(old_positions):
 
 
 def test():
-    base = isolate_string(given)
+    base = isolate_string(t)
+    print(base)
     turn = 0
     board = create_board()
     m = []
@@ -436,6 +485,7 @@ def test():
 
 def check():
     cm = test()
+    print(cm)
     check = []
     for i in range(0, len(cm)):
         if cm[i] == desired[i]:
