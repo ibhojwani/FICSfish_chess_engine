@@ -33,16 +33,19 @@ INFO_TO_PULL = ["WhiteElo",
                 "BlackRD",
                 "PlyCount",
                 "Result",
-                "Moves"]
+                "Moves",
+                "FICSGamesDBGameNo"]
 
 # Information to include in db (<column name>, <structure_type>)
 INFO_TO_INCLUDE = {"WhiteElo": "INTEGER",
                    "BlackElo": "INTEGER",
                    "Result": "INTEGER",
-                   "PlyCount": "INTEGER"}
+                   "PlyCount": "INTEGER",
+                   "Fics_ID": "INTEGER"}
 
 # Indices to build on database (<index name>, <table>, [<column(s)>])
-INDICES = [("IX_Move", "Moves", ["Turn", "Move", "GameID"])]
+INDICES = []
+#("IX_Move", "Moves", ["Turn", "Move", "GameID"])
 
 # Determines how many games go into a single INSERT statement. Adjusted to be
 # fast on my machine, don't know if the ideal number will be different on
@@ -67,9 +70,9 @@ def return_best(conn, filters, move=None):
                 GROUP BY move\n\
                 LIMIT 10;"
         move = pick_move(conn.execute(query).fetchall())
-        fil = "(moves.turn = {} AND moves.move = {})".format(move_number,
-                                                             move)
-        filters.append(fil)
+        # fil = "(moves.turn = {} AND moves.move = {})".format(move_number,
+        #                                                      move)
+        # filters.append(fil)
         return translate_int_to_move(move)
 
     int_move = translate_moves_to_int(move)[0]
@@ -368,6 +371,10 @@ def tweak_info(game_info):
             game_info['Result'] = -1
         else:  # Draw
             game_info['Result'] = 0
+
+    # Changes key name of Fics_ID
+    if "Fics_ID" in INFO_TO_INCLUDE:
+        game_info["Fics_ID"] = game_info["FICSGamesDBGameNo"]
 
     # Turns relevent values into ints from strings
     for key, value in INFO_TO_INCLUDE.items():
