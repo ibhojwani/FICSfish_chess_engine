@@ -70,9 +70,6 @@ def return_best(conn, filters, move=None):
                 GROUP BY move\n\
                 LIMIT 10;"
         move = pick_move(conn.execute(query).fetchall())
-        # fil = "(moves.turn = {} AND moves.move = {})".format(move_number,
-        #                                                      move)
-        # filters.append(fil)
         return translate_int_to_move(move)
 
     int_move = translate_moves_to_int(move)[0]
