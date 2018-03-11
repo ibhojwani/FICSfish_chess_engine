@@ -6,188 +6,107 @@ import ui.database_tools as dbt
 import pandas as pd
 from pathlib import Path
 
-# DATA_DIR = os.path.join("../../", os.path.dirname(__file__))
 DATA_DIR = str(Path(__file__).parents[2])
 DATABASE_FILENAME = os.path.join(DATA_DIR, 'database.db')
+
+#where should I cur.close()? need to add them
+#need to fix queries for results and first plays (need count and intersect and 
+    #also include the rest of query stuff in dict) --> commented out right after av_plays
 
 '''
 This code is written assuming that the dictionary output from the HTML is in
 the following form of:
 
-output_dictionary = {
+data = {
     min_B_ELO: type(int) >= 600 & less than max_B_ELO,
     max_B_ELO: type(int) <= 3000 & greater than min_B_ELO,
     min_W_ELO: type(int) >= 600 & less than max_W_ELO,
     max_W_ELO: type(int) <= 3000 & greater than min_W_ELO,
     num_plays_cutoff: 0 < type(int) < 100,
+    result: 1 or -1
     first_play_white: validmove,
     first_play_black: validmove,
     gameID_box: boolean
 }
 
+If nothing is inputted for one or all of these options in the data dictionary,
+they will default to certain values and return data regarding those except
+for filter plays.
 '''
-
-# TODO: make this return **data**
-# def filter_db(db,data):
-def filter_db(data):
+def dict_to_list(data):
     '''
-    This is a helper function that creates a query based on the output dictionary and
-    returns the database.
+    This is a helper function that returns the list of the data dictionary.
 
-    Input: db (sqlite3 database), output_dictionary (dict) which is the user input
-    Output: db - filtered database given user input
+    Input: dict
+    Output: list 
     '''
-    #ADD CONDITION FOR IF THE DICTIONARY IS EMPTY
+    data_list = [data['min_B_ELO'],data['max_B_ELO'],data['min_W_ELO'],data['max_W_ELO'],\
+        data['num_plays_cutoff'],data['result']]
+    return data_list
 
-    conn = sqlite3.connect(DATABASE_FILENAME)
-    cur = conn.cursor()
-    output_list = []
-    first_string = 'SELECT count * FROM games WHERE'
-    condition = ''
-
-    if len(data) == 0:
-        # return {}
-        return db
-
-    condition = True if first_string[-5:] == 'WHERE' else False
-    #does this automatically check each time condition is called?
-
-    if min_B_ELO in data:
-        add_string = 'BlackElo <= ?'
-        output_list.append(data[min_B_ELO])
-        if condition:
-            first_string += ' ' + add_string
-        else:
-            first_string += ' AND ' + add_string
-
-    if max_B_ELO in data:
-        add_string = 'BlackElo >= ?'
-        output_list.append(data[max_B_ELO])
-        if condition:
-            first_string += ' ' + add_string
-        else:
-            first_string += ' AND ' + add_string
-
-    if min_W_ELO in data:
-        add_string = 'WhiteElo <= ?'
-        output_list.append(data[min_W_ELO])
-        if condition:
-            first_string += ' ' + add_string
-        else:
-            first_string += ' AND ' + add_string
-
-    if max_W_ELO in data:
-        add_string = 'WhiteElo >= ?'
-        output_list.append(data[max_W_ELO])
-        if condition:
-            first_string += ' ' + add_string
-        else:
-            first_string += ' AND ' + add_string
-
-    if num_plays_cutoff in data:
-        add_string = 'Plycount <= ?'
-        output_list.append(data[num_plays_cutoff])
-        if condition:
-            first_string += ' ' + add_string
-        else:
-            first_string += ' AND ' + add_string
-
-    #db = cur.execute(first_string,ouput_list)
-    cur.execute(first_string,output_list)
-    rows = cur.fetchall()
-
-    #return db
-    return rows
-
-def filtering_MoveSeq(db,data):
+def get_statistics(data):
     '''
-    This is the helper function that filters the database further based
-    on whether the user chose to filter out first play. This function also
-    assumes that either the white or black opening moves are inputted in
-    the user form.
-
-    Input:
-    Output:
+    This is the function that returns statistics given the input form, except
+    the filtering for opening moves. 
     '''
     conn = sqlite3.connect(DATABASE_FILENAME)
     cur = conn.cursor()
 
-    if first_play_white in data:
-        first_move = data[first_play_white]
-        first_move_int = dbt.convert_to_int(first_move)
+    cur.execute('SELECT count (*) FROM Games')
+    total_number = cur.fetchone()[0]
+    print (total_number)
 
-    if first_play_black in data:
-        second_move = data[first_play_black]
-        second_move_int = data[first_play_black]
+    data_list = dict_to_list(data)
+    
+    query = 'SELECT count (*) FROM Games WHERE BlackElo >= ? AND BlackElo <= ? \
+    AND WhiteElo >= ? AND WhiteElo <= ? AND Plycount <= ? AND Result == ?'
+    #need to add default values for this query to work 
 
-    if first_play_black in data and first_play_white in data:
-        output_list = [first_move_int,second_move_int]
-        db = cur.execute('SELECT gameID FROM Moves WHERE turn = 1 \
-            AND move = ? INTERSECT SELECT gameID FROM Moves WHERE \
-            turn = 2 AND Move = ?',output_list)
-        return db
+    cur.execute(query,data_list)
+    fraction_number = cur.fetchone()[0]
 
-    elif first_play_black in data:
-        db = cur.execute('SELECT gameID FROM Moves WHERE turn = 2 AND \
-            move = ?',second_move_int)
+    percentage = fraction_number/total_number
+
+    cur.execute('SELECT AVG(Plycount) FROM Games')
+    av_plays = cur.fetchone()[0]
+
+    '''    
+    if data['first_play_white'] is not '' and data['first_play_black']\
+    is not '':
+        white_integer = dbt.convert_to_int(data['first_play_white'])
+        black_integer = dbt.convert_to_int(data['first_play_black'])
+
+        integer_list = [white_integer,black_integer]
+
+        query = 'SELECT count (*) FROM Moves WHERE turn = 1 AND move = ? \
+        INTERSECT SELECT count (*) FROM Moves WHERE turn = 2 AND Move = ?'
+        #get count from this query
+
+        cur.execute(query,integer_list)
+        revised_fraction_number = cur.fetchone()[0]
+
+    elif data['first_play_white'] is not '':
+        white_integer = [dbt.convert_to_int(data['first_play_white'])]
+        query = 'SELECT count (*) FROM Moves WHERE turn = 1 and move = ?'
+        cur.execute(query,white_integer)
+
+        revised_fraction_number = cur.fetchone()[0]
+
 
     else:
-        db = cur.execute('SELECT gameID FROM Moves WHERE turn = 2 AND \
-            move = ?',first_move_int)
+        if data['first_play_black'] is not '':
+            black_integer = [dbt.convert_to_int(data['first_play_black'])]
+            query = 'SELECT count (*) FROM Moves WHERE turn = 2 and move = ?'
+            cur.execute(query,black_integer)
 
-# def return_statistics(db,data):
-def return_statistics(data):
+            revised_fraction_number = cur.fetchone()[0]
+
+    if data['result'] is not None:
     '''
-    This is the main function that implements filtering the database
-    based on user input.
-    '''
 
-    if len(data) == 0:
-        return 'Please input data in at least one field.'
-
-    conn = sqlite3.connect(DATABASE_FILENAME)
-    cur = conn.cursor()
-    gameID_list = []
-
-    total_games = cur.execute('SELECT count (*) FROM Games')
-    # filtered_db = filter_db(db,data)
-    filtered_rows = filter_db(data)
-    if first_play_white in data:
-        final_db = filtering_MoveSeq(filtered_db,data)
-
-    conn = sqlite3.connect(final_db)
-
-    fraction_games = cur.execute('SELECT count (*) FROM Games')
-    percentage = 100 * (fraction_games/total_games)
-
-    av_plays = cur.execute('SELECT AVG(Plycount) FROM Games')
-
-    if gameID_box:
-        gameID_list = cur.execute('SELECT FICSGamesDBGameNo FROM Games').fetchall()
-
-    return percentage, av_plays, gameID_list
-
-
-#### everything above is bad and priya should feel bad
-
-
-"""
-1) given a dictionary of options, return statistics about that option
-"""
-
-def get_statistics(options):
-    print(DATA_DIR)
-    print(DATABASE_FILENAME)
-    # pull data from the database based on stuff in options
-    conn = sqlite3.connect(DATABASE_FILENAME)
-    cur = conn.cursor()
-
-    # get the games database as a pandas df
-    cur.execute("select * from Games;")
-    rows = cur.fetchall()
-    game_df = pd.DataFrame(rows)
-    game_df.columns = ["BlackElo", "WhiteElo", "Result", "PlyCount", "GameID"]
-    cur.close()
-
-    print(game_df.head())
-    print(moves_df.head())
+#    if gameID_box:
+#        gameID_list = [item[0] for item in cur.execute('SELECT FICSGamesDBGameNo').fetchall()]    
+    
+    return ('The average percentage of games in our database given your filtering\
+        options is', percentage,' . The average number of plays for the games in\
+        this filtered database is ', av_plays,'.')
