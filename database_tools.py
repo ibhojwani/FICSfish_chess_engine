@@ -60,7 +60,7 @@ def return_best(conn, filters, move=None):
     '''
     move_number = len(filters) + 1
 
-    if move_number == 1:
+    if move_number == 1 and not move:
         query = "SELECT move, count(move) \n\
                 FROM moves\n\
                 WHERE turn=1\n\
@@ -95,7 +95,7 @@ def return_best(conn, filters, move=None):
                 moves.turn=?\n\
                 AND valid.result = ?\n\
              GROUP BY moves.move;".format(where)
-    params = [move_number - 1, move_number, -(-1)**move_number]
+    params = [move_number, move_number + 1, -(-1)**move_number]
 
     print(query, "\n", params)
     results = conn.execute(query, params).fetchall()
