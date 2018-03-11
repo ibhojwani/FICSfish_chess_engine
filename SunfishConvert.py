@@ -367,32 +367,30 @@ def convert_string(move, turn, board):
     if move[-2] == "=":
         return(pawn_promo(move, current_player, move[-1], board))
 
-    for piece in board:
-        if piece.current_pos[0] == "e5":
-            print("still there")
-
     if move[-1] == "e":
-        print("en passant")
         row = move[0]
-        for piece in board:
-            if piece.current_pos[0] == "e5":
-                print("still there")
         last_space = ""
-        new_pos = alg_to_int(move[2:4])
-        captured_piece = new_pos - 10
-        print(current_player)
+        new_pos = move[2:4]
+        new_coord = alg_to_int(new_pos)
+        if current_player == "White":
+            captured_piece = new_coord - 10
+        else:
+            captured_piece = new_coord + 10
         for piece in board:
-            if piece.current_pos[0] == "e5":
-                piece.current_pos = (move[2:4], new_pos)
-                piece.past_moves += 1
-                last_space = piece.current_pos[0]
+            if piece.current_pos[0][0] == row and piece.player == \
+            current_player and piece.label == name:
+                movement = piece.current_pos[1] - new_coord
+                if movement in DIAGONAL:
+                    last_space = piece.current_pos[0]
+                    piece.current_pos = (new_pos, new_coord)
+                    piece.past_moves += 1       
             elif piece.current_pos[1] == captured_piece:
-                board.remove(piece)
+                capture(captured_piece, board)
+
         sunfish_move = last_space + move[2:4]
         return(sunfish_move)
 
     position, name, row = strip_move(move, board)
-    print(position)
     point = alg_to_int(position)
 
     for piece in board:
@@ -473,8 +471,7 @@ def played_board(old_positions):
 
 
 def test():
-    base = isolate_string(t)
-    print(base)
+    base = isolate_string(given)
     turn = 0
     board = create_board()
     m = []
@@ -485,7 +482,6 @@ def test():
 
 def check():
     cm = test()
-    print(cm)
     check = []
     for i in range(0, len(cm)):
         if cm[i] == desired[i]:
