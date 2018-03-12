@@ -30,6 +30,14 @@ from chessboard.models import Move, Invitation
 def board(request):
     return render(request, 'chess.html', {})
 
+def reset(request):
+    conn = sqlite3.connect(DATABASE_FILENAME)
+    undo = request.GET.get('reset', False)
+    if undo:
+        filters.clear()
+    temp = {'irrelevant': 5}
+    return JsonResponse(temp)
+
 def undo(request):
     conn = sqlite3.connect(DATABASE_FILENAME)
     undo = request.GET.get('undo', False)
