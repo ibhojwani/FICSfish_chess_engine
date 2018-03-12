@@ -42,13 +42,14 @@ def undo(request):
     conn = sqlite3.connect(DATABASE_FILENAME)
     undo = request.GET.get('undo', False)
     if undo:
-        del filters[-1]
+        filters.pop(0)
     temp = {'irrelevant': 5}
     return JsonResponse(temp)
 
 def move_generator(request):
     conn = sqlite3.connect(DATABASE_FILENAME)
     moves = request.GET.get('moves', None)
+
     split_list = moves.split()
     if split_list == []:
         best_move = return_best(conn, filters)
@@ -59,12 +60,15 @@ def move_generator(request):
 
     if best_move is None:
         print("CANT USE DATA, USING SUNFISH")
-        white = request.GET.get('w', True)
+        white = request.GET.get('w', False)
+        print("WHITE IS: ", white)
         print("The next turn is white: ", white)
-        if white:
-            best_move = IntegrateSunfish.modified_sunfish(moves, "White")
+        if white == "true":
+            print("calling White")
+            best_move = IntegrateSunfish.modified_sunfish(moves, next = "White")
         else:
-            best_move = IntegrateSunfish.modified_sunfish(moves, "Black")
+            print("calling Black")
+            best_move = IntegrateSunfish.modified_sunfish(moves, next = "Black")
 
     data = {'m': best_move}
     print("RETURNING: ", data)
