@@ -7,7 +7,7 @@ import pandas as pd
 from pathlib import Path
 
 DATA_DIR = str(Path(__file__).parents[2])
-DATABASE_FILENAME = os.path.join(DATA_DIR, 'database.db')
+DATABASE_FILENAME = os.path.join(DATA_DIR, 'game_data.db')
 
 '''
 This code is written assuming that the dictionary output from the HTML is in
@@ -80,34 +80,42 @@ def get_statistics(data):
     cur.execute('SELECT AVG(Plycount) FROM Games')
     av_plays = cur.fetchone()[0]
 
-    string2 = ''
-    av_black_elo = ''
-    av_white_elo = ''
-
+    av_plays_query = 'SELECT AVG(Plycount) ' + query_p2
+    cur.execute(av_plays_query,data_list)
+    filt_av_plays = cur.fetchone()[0]
 
     cur.execute('SELECT AVG(BlackElo) FROM Games')
     av_black_elo = cur.fetchone()[0]
 
+
     cur.execute('SELECT AVG(WhiteElo) FROM Games')
     av_white_elo = cur.fetchone()[0]
 
+    filt_black_query = 'SELECT AVG(BlackElo) ' + query_p2
+    cur.execute(filt_black_query,data_list)
+    filt_black_elo = cur.fetchone()[0]
+
+    filt_white_query = 'SELECT AVG(WhiteElo) ' + query_p2
+    cur.execute(filt_white_query,data_list)
+    filt_white_elo = cur.fetchone()[0]
+
     if data['gameID_box']:
-        new_query = 'SELECT Fics_GameID' + query_p2 + ' LIMIT 10'
+        new_query = 'SELECT Fics_ID ' + query_p2 + ' LIMIT 10'
         cur.execute(new_query,data_list)
         games_list = [item[0] for item in cur.fetchall()]
 
-        return ('The average percentage of games in our database given your filtering\
-        options is ', round(percentage,2),'%. The average number of plays for the games in\
-        this filtered database is ', round(av_plays,2),'. The average Black Elo rating in this filtered database is ',round(av_black_elo,4),\
-        '. The average White Elo rating in this filtered database is ',round(av_white_elo,4),'. The list of\
-        game IDs that you can search on the FICS database is the following: ',games_list)
+        return ('The average number of plays in our original database is ',round(av_plays,2), \
+        '. The average Black Elo rating in our original database is ',round(av_black_elo,4), 'and the average White Elo\
+        Rating is ',round(av_white_elo,4),'. The average percentage relative to the number games in our database \
+        given your filtering is ', round(percentage,2),'%. The average number of plays for your filtered database is ',round(filt_av_plays,2),\
+        'The average White Elo rating in your filtered database is ',round(filt_white_elo,4),' and the average Black Elo is',round(filt_black_elo,4),\
+        '. The following is the list of Fics Game IDs that you can search up on the FICS database:', games_list,'.')    
     
-    
-    return ('The average percentage of games in our database given your filtering\
-        options is ', round(percentage,2),'. The average number of plays for the games in\
-        this filtered database is ', round(av_plays,2),'. The average Black Elo rating in this filtered database is ',round(av_black_elo,2),\
-        '. The average White Elo rating in this filtered database is ',round(av_white_elo,2),'.')
-
+    return ('The average number of plays in our original database is ',round(av_plays,2), \
+        '. The average Black Elo rating in our original database is ',round(av_black_elo,4), 'and the average White Elo\
+        Rating is ',round(av_white_elo,4),'. The average percentage relative to the number games in our database \
+        given your filtering is ', round(percentage,2),'%. The average number of plays for your filtered database is ',round(filt_av_plays,2),\
+        'The average White Elo rating in your filtered database is ',round(filt_white_elo,4),' and the average Black Elo is ',round(filt_black_elo,4),'.')
 
 
 
