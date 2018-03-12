@@ -15,7 +15,7 @@ import sys
 
 # Sunfish import code taken from:
 # https://stackoverflow.com/questions/279237/import-a-module-from-a-relative-path
-sys.path.insert(0, "/home/student/122-project/122-project/sunfish-master")
+sys.path.insert(0, "/home/student/cmsc12200-win-18-priyalingutla/122-project/sunfish-master")
 import sunfish
 
 FLIPPED_DICT = {"1": "8", "2": "7", "3": "6",

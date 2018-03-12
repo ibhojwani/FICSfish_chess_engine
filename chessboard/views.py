@@ -9,7 +9,7 @@ import os
 
 
 DATA_DIR = os.path.dirname(os.path.dirname(__file__))
-DATABASE_FILENAME = os.path.join(DATA_DIR, 'best.db')
+DATABASE_FILENAME = os.path.join(DATA_DIR, 'game_data.db')
 filters = []
 
 '''
@@ -73,12 +73,13 @@ def move_generator(request):
         best_move = return_best(conn, filters, last_move) #returns the best move
 
 
+
     if best_move is None: #if there is no more data
         white = request.GET.get('w', False) #Gets whose turn it is
         if white == "true": #if the next is white, gets the best white move
-            best_move = IntegrateSunfish.modified_sunfish(moves, next = "White")
+            best_move = IntegrateSunfish.modified_sunfish(moves, "White")
         else: #else, gets the best black move
-            best_move = IntegrateSunfish.modified_sunfish(moves, next = "Black")
+            best_move = IntegrateSunfish.modified_sunfish(moves, "Black")
 
     '''
     returns the next best move as a dictionary->JsonResponse
