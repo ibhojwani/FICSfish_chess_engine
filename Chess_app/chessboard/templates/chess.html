@@ -15,15 +15,51 @@
       <div id="board" style="width: 400px"></div>
       <input type="button" id="moveforme" value="Make move for me" />
       <input type="button" id="moves" value="output move" />
+      <input type="button" id="undo" value="undo move" />
+      <input type="button" id="reset" value="Reset" />
+
 
 
     <script>
-        var best_move = ""
+        var best_move = []
+        var white = true
         var board,
           game = new Chess()
 
         // do not pick up pieces if the game is over
         // only pick up pieces for the side to move
+        $('#undo').on('click', function(){
+            game.undo();
+            updateStatus();
+            board.position(game.fen());
+            white = !(white);
+            $.ajax({
+                url: '{% url "undo" %}',
+                data: {undo: true},
+                type: 'GET',
+                datatype: 'json',
+            }).done(function(data){
+                best_move.pop()
+            });
+        })
+
+        $('#reset').on('click', function(){
+            game.reset();
+            updateStatus();
+            board.position(game.fen());
+            white = true;
+            $.ajax({
+                url: '{% url "reset" %}',
+                data: {reset: true},
+                type: 'GET',
+                datatype: 'json',
+            }).done(function(data){
+                temp = best_move[0];
+                best_move = [];
+                best_move.push(temp);
+            })
+        });
+
         var onDragStart = function(source, piece, position, orientation) {
           if (game.game_over() === true ||
               (game.turn() === 'w' && piece.search(/^b/) !== -1) ||
@@ -57,11 +93,12 @@
           }
           $.ajax({
               url: '{% url "move_generator" %}',
-              data: {moves: alg},
+              data: {moves: alg, w: white},
               type: 'GET',
               datatype: 'json',
           }).done(function(data) {
-              best_move = data.m ;
+              best_move.push(data.m) ;
+              white = !white
           })
         };
 
@@ -76,11 +113,13 @@
           // checkmate?
           if (game.in_checkmate() === true) {
             status = 'Game over, ' + moveColor + ' is in checkmate.';
+            alert(status);
           }
 
           // draw?
           else if (game.in_draw() === true) {
             status = 'Game over, drawn position';
+            alert(status);
           }
 
           // game still on
@@ -90,14 +129,17 @@
             // check?
             if (game.in_check() === true) {
               status += ', ' + moveColor + ' is in check';
+              alert(status);
             }
           }
         };
 
         $('#moveforme').on('click', function() {
-            game.move(best_move);
+            game.move(best_move[best_move.length - 1], {sloppy: true});
             updateStatus();
             board.position(game.fen());
+            white = !white
+
             var list_moves = game.history({verbose:true});
             var alg = "";
             for (i = 0; i < list_moves.length; i++){
@@ -105,17 +147,17 @@
             }
             $.ajax({
                 url: '{% url "move_generator" %}',
-                data: {moves: alg},
+                data: {moves: alg, w: white },
                 type: 'GET',
                 datatype: 'json',
             }).done(function(data) {
-                best_move = data.m ;
+                best_move.push(data.m) ;
             })
         });
 
 
         $('#moves').on('click', function() {
-            alert(best_move)
+            alert(best_move[best_move.length - 1]);
         });
 
         var cfg = {
@@ -127,7 +169,22 @@
         };
         board = ChessBoard('board', cfg);
 
+
         updateStatus();
+
+        window.onload = function() {
+            if(best_move.length == 0){
+                $.ajax({
+                    url: '{% url "move_generator" %}',
+                    data: {moves: ""},
+                    type: 'GET',
+                    datatype: 'json',
+                }).done(function(data){
+                    best_move.push(data.m);
+                });
+            };
+        };
+
 
     </script>
   </body>

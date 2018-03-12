@@ -9,104 +9,109 @@ from pathlib import Path
 DATA_DIR = str(Path(__file__).parents[2])
 DATABASE_FILENAME = os.path.join(DATA_DIR, 'database.db')
 
-#where should I cur.close()? need to add them
-#need to fix queries for results and first plays (need count and intersect and 
-    #also include the rest of query stuff in dict) --> commented out right after av_plays
-
 '''
 This code is written assuming that the dictionary output from the HTML is in
 the following form of:
 
 data = {
-    min_B_ELO: type(int) >= 600 & less than max_B_ELO,
+    min_B_ELO: type(int) >= 0 & less than max_B_ELO,
     max_B_ELO: type(int) <= 3000 & greater than min_B_ELO,
-    min_W_ELO: type(int) >= 600 & less than max_W_ELO,
+    min_W_ELO: type(int) >= 0 & less than max_W_ELO,
     max_W_ELO: type(int) <= 3000 & greater than min_W_ELO,
-    num_plays_cutoff: 0 < type(int) < 100,
-    result: 1 or -1
-    first_play_white: validmove,
-    first_play_black: validmove,
+    num_plays_cutoff: 0 < type(int) < 1000 #high estimate,
+    result: 1 or -1 (this contains no default)
     gameID_box: boolean
 }
-
-If nothing is inputted for one or all of these options in the data dictionary,
-they will default to certain values and return data regarding those except
-for filter plays.
 '''
+
 def dict_to_list(data):
     '''
-    This is a helper function that returns the list of the data dictionary.
+    This is a helper function that returns the list of the data dictionary. The
+    reason it does it individually is to maintain the order of the inputs for the
+    query. The '.items()' method for a dictionary can have random placement results
+    that do not correspond to the query placements.
 
     Input: dict
     Output: list 
     '''
-    data_list = [data['min_B_ELO'],data['max_B_ELO'],data['min_W_ELO'],data['max_W_ELO'],\
-        data['num_plays_cutoff'],data['result']]
+
+    data_list = []
+    data_list.append(data['min_B_ELO'])
+    data_list.append(data['max_B_ELO'])
+    data_list.append(data['min_W_ELO'])
+    data_list.append(data['max_W_ELO'])
+    data_list.append(data['num_plays_cutoff'])
+
+    if 'result' in data:
+        data_list.append(data['result'])
+
     return data_list
 
 def get_statistics(data):
     '''
-    This is the function that returns statistics given the input form, except
-    the filtering for opening moves. 
+    This is the function that returns the statistics based on user inputs (data dict).
+
+    Input: dict
+    Output: str and int
     '''
+
     conn = sqlite3.connect(DATABASE_FILENAME)
     cur = conn.cursor()
 
     cur.execute('SELECT count (*) FROM Games')
     total_number = cur.fetchone()[0]
-    print (total_number)
 
     data_list = dict_to_list(data)
     
-    query = 'SELECT count (*) FROM Games WHERE BlackElo >= ? AND BlackElo <= ? \
-    AND WhiteElo >= ? AND WhiteElo <= ? AND Plycount <= ? AND Result == ?'
-    #need to add default values for this query to work 
+    query_p1 = 'SELECT count(*) '
+    query_p2 = 'FROM Games WHERE BlackElo >= ? AND BlackElo <= ? \
+    AND WhiteElo >= ? AND WhiteElo <= ? AND Plycount <= ?'
+    
 
+    if 'result' in data:
+        query_p2 += ' AND Result == ?'
+
+    query = query_p1 + query_p2
     cur.execute(query,data_list)
     fraction_number = cur.fetchone()[0]
 
-    percentage = fraction_number/total_number
+    percentage = 100*(fraction_number/total_number)
 
     cur.execute('SELECT AVG(Plycount) FROM Games')
     av_plays = cur.fetchone()[0]
 
-    '''    
-    if data['first_play_white'] is not '' and data['first_play_black']\
-    is not '':
-        white_integer = dbt.convert_to_int(data['first_play_white'])
-        black_integer = dbt.convert_to_int(data['first_play_black'])
-
-        integer_list = [white_integer,black_integer]
-
-        query = 'SELECT count (*) FROM Moves WHERE turn = 1 AND move = ? \
-        INTERSECT SELECT count (*) FROM Moves WHERE turn = 2 AND Move = ?'
-        #get count from this query
-
-        cur.execute(query,integer_list)
-        revised_fraction_number = cur.fetchone()[0]
-
-    elif data['first_play_white'] is not '':
-        white_integer = [dbt.convert_to_int(data['first_play_white'])]
-        query = 'SELECT count (*) FROM Moves WHERE turn = 1 and move = ?'
-        cur.execute(query,white_integer)
-
-        revised_fraction_number = cur.fetchone()[0]
+    string2 = ''
+    av_black_elo = ''
+    av_white_elo = ''
 
 
-    else:
-        if data['first_play_black'] is not '':
-            black_integer = [dbt.convert_to_int(data['first_play_black'])]
-            query = 'SELECT count (*) FROM Moves WHERE turn = 2 and move = ?'
-            cur.execute(query,black_integer)
+    cur.execute('SELECT AVG(BlackElo) FROM Games')
+    av_black_elo = cur.fetchone()[0]
 
-            revised_fraction_number = cur.fetchone()[0]
+    cur.execute('SELECT AVG(WhiteElo) FROM Games')
+    av_white_elo = cur.fetchone()[0]
 
-    if data['result'] is not None:
-    '''
+    if data['gameID_box']:
+        new_query = 'SELECT Fics_GameID' + query_p2 + ' LIMIT 10'
+        cur.execute(new_query,data_list)
+        games_list = [item[0] for item in cur.fetchall()]
 
-#    if gameID_box:
-#        gameID_list = [item[0] for item in cur.execute('SELECT FICSGamesDBGameNo').fetchall()]    
+        return ('The average percentage of games in our database given your filtering\
+        options is ', round(percentage,2),'%. The average number of plays for the games in\
+        this filtered database is ', round(av_plays,2),'. The average Black Elo rating in this filtered database is ',round(av_black_elo,4),\
+        '. The average White Elo rating in this filtered database is ',round(av_white_elo,4),'. The list of\
+        game IDs that you can search on the FICS database is the following: ',games_list)
+    
     
     return ('The average percentage of games in our database given your filtering\
-        options is', percentage,' . The average number of plays for the games in\
-        this filtered database is ', av_plays,'.')
+        options is ', round(percentage,2),'. The average number of plays for the games in\
+        this filtered database is ', round(av_plays,2),'. The average Black Elo rating in this filtered database is ',round(av_black_elo,2),\
+        '. The average White Elo rating in this filtered database is ',round(av_white_elo,2),'.')
+
+
+
+
+
+    
+
+

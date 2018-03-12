@@ -19,4 +19,6 @@ urlpatterns = [
 urlpatterns = [
     url(r'^$', views.board, name='board'),
     url(r'^views/move_generator/$', views.move_generator, name='move_generator'),
+    url(r'^views/undo/$', views.undo, name='undo'),
+    url(r'^views/reset/$', views.reset, name='reset'),
 ]
