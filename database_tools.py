@@ -44,8 +44,7 @@ INFO_TO_INCLUDE = {"WhiteElo": "INTEGER",
                    "Fics_ID": "INTEGER"}
 
 # Indices to build on database (<index name>, <table>, [<column(s)>])
-INDICES = []
-# INDICES = [("IX_Move", "Moves", ["Turn", "Move", "Fics_ID"])]
+INDICES = [("IX_Move", "Moves", ["Turn", "Move"])]
 
 
 # Determines how many games go into a single INSERT statement. Adjusted to be
@@ -134,12 +133,6 @@ def populate_db(games_file, db, unique=True, n=None):
     conn = sqlite3.connect(db)
     cur = conn.cursor()
 
-    # if param is true, checks to make sure file isn't already in db.
-    if check_file(games_file, cur, unique):
-        print("File is already in database!\n")
-        return None
-    cur.execute("INSERT INTO FilesAdded Values (?);", [games_file])
-
     # Drops old indices. May be faster to omit this, needs testing.
     drop_indices(cur)
 
@@ -178,15 +171,14 @@ def initialize_db(path):
     games_query = games_query[:-2] + " PRIMARY KEY) WITHOUT ROWID;"
     conn.execute(games_query)
 
-    files_added_query = "CREATE TABLE IF NOT EXISTS FilesAdded (FileName)"
-    conn.execute(files_added_query)
-
     moves_query = "Create Table IF NOT EXISTS Moves (\n \
         Move, Turn, Fics_ID, \n\
         FOREIGN KEY(Fics_ID) REFERENCES Games(Fics_ID));"
     conn.execute(moves_query)
 
     conn.commit()
+    conn.execute("PRAGMA journal_mode = WAL")  # sig. increases write speed
+    conn.execute("PRAGMA synchronous = 1") # paired w/ above line
     conn.close()
 
     return None
@@ -223,7 +215,7 @@ def add_games(game_list, db, n):
     for i, game in enumerate(game_list):
         j += 1
         # print % completion at intervals of 10% and every 9k moves
-        if (i % 9000 == 0) or (round(i/length*100, 2) % 15 == 0):
+        if (i % 9000 == 0):
             print("..............{}%".format(round(i / length * 100)))
 
         # Ensures game starts with '[', which can be lost during splitting
@@ -263,23 +255,6 @@ def add_games(game_list, db, n):
             j = 0
 
     return None
-
-
-def check_file(games_file, db, unique):
-    '''
-    Checks if a given file has already been added to the db from the filename.
-    Inputs:
-        game_file: string, name of file (NOT path)
-        db: database cursor or connection
-    returns True if item in db, False if not
-    '''
-    if not unique:
-        return False
-
-    added_files = db.execute("SELECT FileName FROM FilesAdded WHERE FileName\
-        = ?", [games_file]).fetchall()
-
-    return bool(added_files)
 
 
 def drop_indices(conn):
@@ -413,7 +388,7 @@ def clear_db(db):
         db: database path
     returns None
     '''
-    tables = ["Moves", "Games", "FilesAdded", "sqlite_stat1"]
+    tables = ["Moves", "Games", "sqlite_stat1"]
     conn = sqlite3.connect(db)
 
     for table in tables:
