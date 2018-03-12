@@ -106,16 +106,24 @@ def create_sunfish_board(string, next = "White"):
     for square in new_board: #Turns list back into a string
         returned_board += square
     if next == "Black":
-        returned_board = rotate_board(returned_board)
-    print(returned_board)
+        returned_board = flip_board(returned_board)
     return returned_board
 
 
-def rotate_board(string_board):
+def flip_board(string_board):
+    '''
+    Rotates the board in case of Black player
+    
+    Inputs:
+        string_board: a string represening a chess board
+
+    Returns:
+        A board flipped vertically
+    '''
     rows = []
     for i in range(0,12):
         index_start = i * 10
-        index_end = (i+1) * 10
+        index_end = (i + 1) * 10
         row = string_board[index_start:index_end]
         rows.append(row)
     rows.reverse()
@@ -125,7 +133,6 @@ def rotate_board(string_board):
             flipped_board += square
     return flipped_board
 
-#3-6, 1-8, 2-7, 4-5
 
 def modified_sunfish(string, next = "White"):
     '''
@@ -147,7 +154,6 @@ def modified_sunfish(string, next = "White"):
     searcher = sunfish.Searcher()
     pos = sunfish.Position(sunfish_board, 0, (True,True), (True,True), 0, 0)
     move, score = searcher.search(pos, secs=2) #move returned as a tuple of integers
-    print(move)
 
     integer_move_from = index_conversion(move[0])
     integer_move_to = index_conversion(move[1])
