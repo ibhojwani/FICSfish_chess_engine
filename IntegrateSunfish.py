@@ -17,14 +17,14 @@ import sys
 
 # Sunfish import code taken from:
 #https://stackoverflow.com/questions/279237/import-a-module-from-a-relative-path
-sys.path.insert(0, "/home/student/122-project/122-project/sunfish-master")
+sys.path.insert(0, "/122-project/sunfish-master")
 import sunfish
 
 '''
 Much of this code is borrowed or modified from sunfish
 '''
 
-BLANK_BOARD = (
+    BLANK_BOARD = (
     '         \n'  #   0 -  9
     '         \n'  #  10 - 19
     ' ........\n'  #  20 - 29
