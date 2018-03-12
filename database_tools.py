@@ -8,10 +8,10 @@ import re
 import sqlite3
 import os
 from time import time
+from translation import translate_int_to_move, translate_moves_to_int
 from cProfile import run
 from pstats import Stats
 from numpy import random
-from translation import translate_int_to_move, translate_moves_to_int
 
 '''
 TODO
@@ -41,11 +41,11 @@ INFO_TO_INCLUDE = {"WhiteElo": "INTEGER",
                    "BlackElo": "INTEGER",
                    "Result": "INTEGER",
                    "PlyCount": "INTEGER",
-                   "Fics_ID": "INTEGER"}
+                   "Fics_ID": "INTEGER UNIQUE"}
 
 # Indices to build on database (<index name>, <table>, [<column(s)>])
-INDICES = [("IX_Move", "Moves", ["Turn", "Move"])]
-
+INDICES = []
+#("IX_Move", "Moves", ["Turn", "Move", "GameID"])
 
 # Determines how many games go into a single INSERT statement. Adjusted to be
 # fast on my machine, don't know if the ideal number will be different on
@@ -53,7 +53,7 @@ INDICES = [("IX_Move", "Moves", ["Turn", "Move"])]
 QUERY_FREQ = 250
 
 
-def return_best(conn, filters, move=None):
+def return_best(conn, filters, move=None, explain=False):
     '''
     Takes a move, creates viewreturns the best move and creates relevent views
     Inputs:
@@ -80,24 +80,28 @@ def return_best(conn, filters, move=None):
     query = "SELECT moves.move, count(moves.move)\n\
              FROM moves\n\
              JOIN (\n\
-                SELECT Fics_ID, result\n\
+                SELECT gameID, result\n\
                 FROM (\n\
-                    SELECT moves.Fics_ID, count(moves.Fics_ID) AS ct, result\n\
+                    SELECT moves.gameid, count(moves.gameid) AS ct, result\n\
                     FROM moves\n\
                     JOIN games\n\
-                        ON moves.Fics_ID = games.Fics_ID\n\
+                        ON moves.gameID = games.gameID\n\
                     WHERE\n\
                         {}\n\
-                    GROUP BY moves.Fics_ID)\n\
+                    GROUP BY moves.gameid)\n\
                 WHERE ct = ?) as valid\n\
-             ON moves.Fics_ID=valid.Fics_ID\n\
+             ON moves.gameID=valid.gameID\n\
              WHERE\n\
                 moves.turn=?\n\
                 AND valid.result = ?\n\
              GROUP BY moves.move;".format(where)
+    if explain:
+        query = "EXPLAIN QUERY PLAN " + query
     params = [move_number, move_number + 1, (-1)**move_number]
 
     results = conn.execute(query, params).fetchall()
+    if explain:
+        return results
 
     if not results:
         return None
@@ -118,34 +122,41 @@ def pick_move(query_results):
     return move
 
 
-def populate_db(games_file, db, unique=True, n=None):
+def populate_db(games_file, db, n=None, verbose=False, single_file=True):
     '''
     Populates the database with a list of games.
     input:
         games: filename with pgn of games to be added
         db: database to populate, filename
         redundancy: when True, stops redundant files from being added
+        verbose: bool
+        sinlge_file: True if only a single file is being added
     returns int,  # of games added
     '''
     init_t = time()
-    print('Connecting to database...')
+    if verbose:
+        print('Connecting to database...')
     initialize_db(db)
     conn = sqlite3.connect(db)
     cur = conn.cursor()
 
     # Drops old indices. May be faster to omit this, needs testing.
+    if verbose:
+        print("Dropping Indices...")
     drop_indices(cur)
 
     # Opens game file and adds games, printing % completion every 10%
     with open(games_file, "r") as file:
         games = file.read()
     game_list = re.split(r"\n\n\[", games)
-    add_games(game_list, cur, n)
+    add_games(game_list, cur, n, verbose)
 
     # Concludes insert, builds index and stat table, and closes connection
     i = conn.total_changes
-    print("Building new indices and cleaning up...")
-    build_indices(cur)
+    if verbose:
+        print("Building new indices and cleaning up...")
+    if single_file:
+        build_indices(cur)
 
     print("Modified {} rows in {} seconds.".format(i-1, time() - init_t))
     cur.execute("ANALYZE;")
@@ -168,23 +179,23 @@ def initialize_db(path):
     for field, field_type in INFO_TO_INCLUDE.items():
         games_query += " {} {},\n".format(field, field_type)
 
-    games_query = games_query[:-2] + " PRIMARY KEY) WITHOUT ROWID;"
+    games_query = games_query + " GameID INTEGER PRIMARY KEY);"
     conn.execute(games_query)
 
-    moves_query = "Create Table IF NOT EXISTS Moves (\n \
-        Move, Turn, Fics_ID, \n\
-        FOREIGN KEY(Fics_ID) REFERENCES Games(Fics_ID));"
+    files_added_query = "CREATE TABLE IF NOT EXISTS FilesAdded (FileName)"
+    conn.execute(files_added_query)
+
+    moves_query = "Create Table IF NOT EXISTS Moves (\n" \
+        "Move, Turn, GameID, FOREIGN KEY(GameID) REFERENCES Games(GameID));"
     conn.execute(moves_query)
 
     conn.commit()
-    conn.execute("PRAGMA journal_mode = WAL")  # sig. increases write speed
-    conn.execute("PRAGMA synchronous = 1") # paired w/ above line
     conn.close()
 
     return None
 
 
-def add_games(game_list, db, n):
+def add_games(game_list, db, n, verbose):
     '''
     Adds a game to a database.
     Inputs:
@@ -203,9 +214,13 @@ def add_games(game_list, db, n):
 
     def build_move_query():
         ''' Builds query outline for move insert'''
-        return "INSERT INTO Moves(\n move,\n turn,\n Fics_ID) VALUES ("
+        return "INSERT INTO Moves(\n move,\n turn,\n gameID) VALUES ("
 
-    j = 0
+    query_timer = 0
+    # gets the highest rowID currently in table
+    starting_rowid = db.execute("SELECT MAX(gameID) from games;").fetchall()[0][0]
+    if not starting_rowid:
+        starting_rowid = 0
     game_query = build_game_query()
     move_query = build_move_query()
     if n:
@@ -213,9 +228,9 @@ def add_games(game_list, db, n):
     length = len(game_list)
 
     for i, game in enumerate(game_list):
-        j += 1
+        query_timer += 1
         # print % completion at intervals of 10% and every 9k moves
-        if (i % 9000 == 0):
+        if (i % 9000 == 0) and verbose:
             print("..............{}%".format(round(i / length * 100)))
 
         # Ensures game starts with '[', which can be lost during splitting
@@ -225,6 +240,7 @@ def add_games(game_list, db, n):
 
         # FIND A FASTER WAY TO BUILD QUERY -- maybe less adding strings?
         if game_info:
+            starting_rowid += 1
             # Builds game query
             for value in INFO_TO_INCLUDE:
                 game_query += "\n{},".format(game_info[value])
@@ -232,14 +248,14 @@ def add_games(game_list, db, n):
 
             # Builds move query
             for move_num, move in enumerate(game_info["Moves"]):
-                # Adds move, current plycount, and Fics_ID
+                # Adds move, current plycount, and gameid
                 move_query += "{}, {}, {}), (".format(str(move),
                                                       move_num + 1,
-                                                      game_info["Fics_ID"])
+                                                      starting_rowid)
 
         # Execute / commit in batches, as multirow inserts are faster.
         # Best freq depends: long query strings uses more RAM and can slow.
-        if j == QUERY_FREQ:
+        if query_timer == QUERY_FREQ:
             # Execute and commit queries
             try:
                 db.execute(game_query[:-3] + ";")
@@ -252,9 +268,26 @@ def add_games(game_list, db, n):
             # Reset variables
             game_query = build_game_query()
             move_query = build_move_query()
-            j = 0
+            query_timer = 0
 
     return None
+
+
+def check_file(games_file, db, unique):
+    '''
+    Checks if a given file has already been added to the db from the filename.
+    Inputs:
+        game_file: string, name of file (NOT path)
+        db: database cursor or connection
+    returns True if item in db, False if not
+    '''
+    if not unique:
+        return False
+
+    added_files = db.execute("SELECT FileName FROM FilesAdded WHERE FileName\
+        = ?", [games_file]).fetchall()
+
+    return bool(added_files)
 
 
 def drop_indices(conn):
@@ -342,14 +375,14 @@ def tweak_info(game_info):
         else:  # Draw
             game_info['Result'] = 0
 
-    # Changes key name of Fics_ID
-    if "Fics_ID" in INFO_TO_INCLUDE:
-        game_info["Fics_ID"] = game_info["FICSGamesDBGameNo"]
-
     # Turns relevent values into ints from strings
     for key, value in INFO_TO_INCLUDE.items():
         if value == "INTEGER":
             convert_to_int(key)
+
+    # Changes key name of Fics_ID
+    if "Fics_ID" in INFO_TO_INCLUDE:
+        game_info["Fics_ID"] = game_info["FICSGamesDBGameNo"]
 
     # Translates moves into a list of 2 byte ints
     if not game_info["Moves"]:
@@ -375,9 +408,14 @@ def add_all_in_dir(directory, db):
     for i, file in enumerate(os.listdir(directory)):
         print("{}/{}".format(i + 1, len(os.listdir(directory))))
         if file.endswith(".pgn"):
-            populate_db("{}/{}".format(directory, file), db)
+            populate_db("{}/{}".format(directory, file), db, single_file=False)
         else:
             print("Skipping non .pgn file...")
+
+    conn = sqlite3.connect(db)
+    build_indices(conn)
+    conn.commit()
+    conn.close()
     return None
 
 
@@ -388,7 +426,7 @@ def clear_db(db):
         db: database path
     returns None
     '''
-    tables = ["Moves", "Games", "sqlite_stat1"]
+    tables = ["Moves", "Games", "FilesAdded", "sqlite_stat1"]
     conn = sqlite3.connect(db)
 
     for table in tables:
