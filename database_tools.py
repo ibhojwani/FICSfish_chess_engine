@@ -44,7 +44,8 @@ INFO_TO_INCLUDE = {"WhiteElo": "INTEGER",
                    "Fics_ID": "INTEGER UNIQUE"}
 
 # Indices to build on database (<index name>, <table>, [<column(s)>])
-INDICES = [("IX_Move", "Moves", ["Turn", "Move", "GameID"])]
+INDICES = [("IX_Move", "Moves", ["Turn", "Move", "GameID"]),
+("IX_resuls", "Games", ["result"])]
 
 # Determines how many games go into a single INSERT statement. Adjusted to be
 # fast on my machine, don't know if the ideal number will be different on
@@ -74,7 +75,7 @@ def return_best(conn, filters, move=None, explain=False):
     int_move = translate_moves_to_int(move)[0]
     fil = "(moves.turn = {} AND moves.move = {})".format(move_number,
                                                          int_move)
-    filters.append(fil)
+    filters.insert(0, fil)
     where = "\n OR ".join(filters) + "\n"
     query = "SELECT moves.move, count(moves.move)\n\
              FROM moves\n\
