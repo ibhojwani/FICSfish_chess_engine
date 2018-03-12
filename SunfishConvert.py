@@ -17,24 +17,6 @@ Author: Catalina Raggi
 '''
 import re
 
-given = "1. e4 c5 2. f4 e6 3. Nf3 Nc6 4. d3 d5 \
-5. e5 Qa5+ 6. c3 Nh6 7. Be2 Be7 8. O-O O-O 9. Re1 Qb6 10. \
-Nbd2 c4+ 11. d4 Nf5 12. Nf1 Bd7 13. g4 Nh4 14. Kh1 Nxf3 15. \
-Bxf3 Bh4 16. Re2 Rad8 17. Rg2 a6 18. Ng3 Ne7 19. \
-Nh5 Qa5 20. Bd2 Qb5 21. Be1 Bxe1 \ 22. Qxe1 h6 23. g5 hxg5 24. \
-Rxg5 Ng6 25. Qg3 Qxb2 26. Rg1 Qxc3 27. Nf6+ gxf6 28. Rxg6+ \
-fxg6 29. Qxg6+ Kh8 30. Qh6# {Black checkmated} 1-0"
-
-t = "e4 e6 e5 d5 exd6e.p."
-
-desired = ["e2e4", "c7c5", "f2f4", "e7e6", "g1f3", "b8c6", "d2d3", "d7d5", \
-"e4e5", "d8a5", "c2c3", "g8h6", "f1e2", "f8e7", "e1g1", "e8g8", "f1e1", "a5b6",\
-"b1d2", "c5c4", "d3d4", "h6f5", "d2f1", "c8d7", "g2g4", "f5h4", "g1h1",\
-"h4f3", "e2f3", "e7h4", "e1e2", "a8d8", "e2g2", "a7a6", "f1g3", "c6e7",\
-"g3h5", "b6a5", "c1d2", "a5b5", "d2e1", "h4e1", "d1e1", "h7h6", "g4g5", "h6g5",\
-"g2g5", "e7g6", "e1g3", "b5b2", "a1g1", "b2c3", "h5f6", "g7f6", "g5g6",\
-"f7g6", "g3g6", "g8h8", "g6h6"]
-
 ''' 
 This code uses integer representations for squares on a chess board to calculate movements
 as well as the common a-h, 1-8 notation.
@@ -64,13 +46,30 @@ def isolate_string(string):
     Turns inputted string of moves and number of turns 
     into a list of just the moves
 
+    Explanation of re string:
+
+    [A-z]: look for the starting letters (either starting column
+    or piece label)
+
+    \d: find the column number being moved into
+
+    The second call for [A-z] is to find en passant moves, which
+    come in the form column+capture+new_location+e.p.
+    EX:hxg6e.p.
+
+    The = is considered to check for pawn promotions, which come
+    in the form column+row+=+label_of_piece_promoted_to
+    EX: e8=Q
+
+    Castling is notated as "O-O" or "O-O-O"
+
     Inputs: 
         string: a string of moves
 
     Returns:
         A list of strings
     '''
-    return re.findall(r"[A-z]+\d+[A-z]*|O-O|O-O-O", string)
+    return re.findall(r"[A-z]+\d+[A-z]*=*[A-z]*|O-O|O-O-O", string)
 
 
 def alg_to_int(position):
@@ -91,6 +90,7 @@ def alg_to_int(position):
     pos = horizontal + vertical
     return(pos)
 
+
 def int_to_alg(coordinate):
     '''
     Turns an integer coordinate into the algebraic notation
@@ -108,6 +108,7 @@ def int_to_alg(coordinate):
     column = LETTERS[column_index - 1]
     return column + row
 
+
 class Piece(object):
     '''
     This class represents the pieces on the board.
@@ -123,15 +124,20 @@ class Piece(object):
         self.unlimited = unlimited #Boolean
         self.player = player #String 
 
+
 def create_piece(label, position, movements, unlimited):
     '''
     Creates the pieces needed for the starting board.
+
     Inputs:
         label: The label attribute of the piece
         position: A list of starting squares for the pieces,
         will alternate sides of the board starting with the white side
         movements: The possible moves for the piece type
         unlimited: A boolean saying whether the pawn has unlimited moves
+
+    Returns:
+        A list of pieces
     '''
     pieces = [] 
     i = 0 #Alternate between creating White and Black pieces
@@ -146,6 +152,12 @@ def create_piece(label, position, movements, unlimited):
             i += 1
     return(pieces)
 
+
+'''
+FUNCTIONS TO CREATE BOARD
+'''
+
+
 def create_knights():
     '''
     Creates the four knight pieces for the starting board as a list
@@ -154,6 +166,7 @@ def create_knights():
     positions = [("b1", 12), ("b8", 82), ("g1", 17), ("g8", 87)]
 
     return create_piece("N", positions, movements, False)
+
 
 def create_rooks():
     '''
@@ -191,6 +204,7 @@ def create_kings():
     positions = [("e1", 15), ("e8", 85)]
     return create_piece("K", positions, FREE_MOVEMENT, False)
 
+
 def create_queens():
     '''
     Creates the two queen pieces for the starting board as a list
@@ -198,6 +212,7 @@ def create_queens():
     '''
     positions = [("d1", 14), ("d8", 84)]
     return create_piece("Q", positions, FREE_MOVEMENT, True)
+
 
 def create_board():
     '''
@@ -213,17 +228,36 @@ def create_board():
     return(board)
 
 
+'''
+FUNCTIONS TO MODIFY BOARD
+'''
+
 def pawn_to_queen(new_space, player, label, board):
     '''
     Promotes a pawn to a given Piece type
+
+    Inputs:
+        new_space: a tuple with the space on the board
+        being moved too as both a string an an integer
+        EX. ("a1", 11)
+        player: A string representing the current player
+        label: A string representing the type of piece
+        the pawn will promote to
+        board: a list of pieces
+
+    Returns:
+        Modified board and the move in algebraic notation
     '''
-    if new_space[1] == "8": #Find the previous position
+    if new_space[1] == "8": #If white promotion
+    #Find the previous position
         add = "7"
-    elif new_space[1] == "1":
+    elif new_space[1] == "1": #If black promotion
+    #Find previous position
         add = "2"
 
     prev_pos = new_space[0] + add 
     sunfish_move = prev_pos + new_space
+    return(sunfish_move)
 
     for piece in board:
     #Look for the pawn being promoted and promote
@@ -240,14 +274,25 @@ def pawn_to_queen(new_space, player, label, board):
             board.remove(piece)
             return(sunfish_move)
 
+
 def castling(castle, player, board):
     '''
     This function allows for the castling move.
     It looks for the king and rook being moved and then moves
     them to their new locations.
+
+    Inputs:
+        castle: A string representing the type of castling
+        EX. O-O or O-O-O
+        player: A string representing the current player
+        board: a list of Piece items
+
+    Returns:
+        A modified board and the move in coordinate notation
     '''
     rook = ""
     for piece in board:
+    #Look for the pieces being moved
         if piece.player == player:
             if piece.label == "K": #Create copy and remove original
                 king = piece
@@ -271,7 +316,6 @@ def castling(castle, player, board):
             king.past_moves += 1
             rook.current_pos = ("f1", 16)
             rook.past_moves += 1
-
         elif castle == "O-O-O":
             sunfish_move = "e1c1"
             king.current_pos = ("c1", 12)
@@ -296,44 +340,60 @@ def castling(castle, player, board):
     board.append(rook)
     return(sunfish_move)
 
+
 def strip_move(move, board):
     '''
     This function takes the necessary data from a given move 
     based on the length and special characteristics
     of the move string inputted.
+
+    Inputs:
+        move: A string representing a movement
+        EX. Nd6, Rab1
+        board: a list of Piece objects
+
+    Returns:
+        the spot being moved to, 
+        label of the piece, 
+        and the row filter, 
     '''
     name = "P"
     row = None
     if len(move) == 2:
+    #If it's just the new position, assume pawn
         return move, name, row
     elif len(move) == 3:
+    #"+" not part of move, so move must have type
+    #of piece and the destination
         name  = move[0]
         position =  move[1:3]
         return position, name, row
-
     elif len(move) == 4:
-        if move[1] == "x":
-            if move[0].isupper():
+        if move[1] == "x": #Piece is caputred
+            if move[0].isupper(): #If move specifies piece type
                 name = move[0]
                 position = move[2:4]
                 capture(position, board)
                 return position, name, row
-            else:
+            else: #else first element must be row filter
                 row = move[0]
                 position = move[2:4]
                 capture(position, board)
                 return position, name, row
-        else:
+        else: #If not capture, 2nd element row filter
             name = move[0]
             position = move[2:4]
             row = move[1]
             return position, name, row
-    elif len(move) == 5:
+    elif len(move) == 5: 
+    #Must be capture with name and row filters
+    #EX, Naxd6
         name = move[0]
         row = move[1]
         position = move[3:5]
         capture(position, board)
         return position, name, row
+
 
 def capture(position, board):
     '''
@@ -350,6 +410,20 @@ def capture(position, board):
 
 
 def convert_string(move, turn, board):
+    '''
+    Given a move in algebraic notation, this function tests to 
+    see which piece can make the given move and modifies a board 
+    representing the chess game.
+
+    Inputs:
+        move: a string representing the movement
+        turn: an integer representing the amount of turns that have past
+        this is used to calculate the current player
+        board: a list of piece items
+
+    Returns:
+        Modifies a board and returns the movement in coordinate notation
+    '''
 
     players = ["White", "Black"]
     current_player = players[turn%2]
@@ -364,27 +438,33 @@ def convert_string(move, turn, board):
     This section standardizes the string
     '''
 
-    if move[-2] == "=":
+    if move[-2] == "=": #If pawn promotion
+    #Pawn promo notation is a8=Q format
         return(pawn_promo(move, current_player, move[-1], board))
 
-    if move[-1] == "e":
+    if move[-1] == "e": #If en passant
+    #FICS denotes en passant with e.p.
+    #Regex is only concerned with e
         row = move[0]
         last_space = ""
-        new_pos = move[2:4]
+        new_pos = move[2:4] #move[1] must be x 
         new_coord = alg_to_int(new_pos)
         if current_player == "White":
             captured_piece = new_coord - 10
         else:
             captured_piece = new_coord + 10
         for piece in board:
+            #Find pieces that meet given conditions
             if piece.current_pos[0][0] == row and piece.player == \
             current_player and piece.label == name:
+            #Find attacking piece
                 movement = piece.current_pos[1] - new_coord
                 if movement in DIAGONAL:
                     last_space = piece.current_pos[0]
                     piece.current_pos = (new_pos, new_coord)
                     piece.past_moves += 1       
             elif piece.current_pos[1] == captured_piece:
+                #Delete captured piece
                 capture(captured_piece, board)
 
         sunfish_move = last_space + move[2:4]
@@ -394,6 +474,7 @@ def convert_string(move, turn, board):
     point = alg_to_int(position)
 
     for piece in board:
+    #Go through pieces and test which can make the given move
         if piece.label == name and piece.player == current_player:
             #Check for row filter condition
             if row and piece.current_pos[0][0] != row: 
@@ -420,23 +501,24 @@ def convert_string(move, turn, board):
                         piece.current_pos = (position, point)
                         piece.past_moves += 1
                         return(sunfish_move)
-                    
                     elif piece.label == "P": #Pawn has special moves
-                        #Option to move forward two spaces
+                        #Option to move forward two spaces 
+                        #as first move of pawn
                         if movement == 20 and piece.past_moves == 0:
                             sunfish_move = piece.current_pos[0] + position
                             piece.current_pos = (position, point)
                             piece.past_moves += 1
                             return(sunfish_move)
-                        elif move[1] == "x":
+                        elif move[1] == "x": #Special rules if pawn capture
                             if movement == 9 or movement == 11:
                                 sunfish_move = piece.current_pos[0] + position
                                 piece.current_pos = (position, point)
                                 piece.past_moves += 1
                                 return(sunfish_move)                   
-
                 elif piece.unlimited == True:
+                #Piece can move multiple squares
                     for factor in piece.movements:
+                    #Check which direction it's moving in
                         blocked = False
                         test = 0
                         if movement % factor == 0 and (movement // factor) < 10:
@@ -444,49 +526,37 @@ def convert_string(move, turn, board):
                                 factor *= -1
                             for i in range(1, (movement // factor) +1):
                                 change = i * factor
-
                                 if piece.player == "White":
                                     test = piece.current_pos[1] + change
                                 elif piece.player == "Black":
                                     test = piece.current_pos[1] - change
                                 for subpiece in board:
+                                #See if piece is blocked from moving
                                     if subpiece != piece and subpiece.current_pos[1] == test:
-                                        blocked = True
-                        
+                                        blocked = True                        
                             if not blocked:
+                            #If the movement is in the right direction
+                            #and the piece is not blocked
+                            #move the piece
                                 sunfish_move = piece.current_pos[0] + position
                                 piece.current_pos = (position, test)
                                 return(sunfish_move)
 
-def played_board(old_positions):
-    take = isolate_string(old_positions)
+
+def played_board(move_history):
+    '''
+    Creates a board represented by Piece objects from a string of moves.
+
+    Inputs:
+        move_history: a string representing a chess game
+
+    Returns:
+        A list of Piece objects representing a chess board
+    '''
+    take = isolate_string(move_history)
     board = create_board()
     turn = 0
-
     for move in take:
         convert_string(move, turn, board)
         turn += 1
-
     return board
-
-
-def test():
-    base = isolate_string(given)
-    turn = 0
-    board = create_board()
-    m = []
-    for move in base:
-        m.append(convert_string(move, turn, board))
-        turn += 1
-    return m
-
-def check():
-    cm = test()
-    check = []
-    for i in range(0, len(cm)):
-        if cm[i] == desired[i]:
-            pass
-        else:
-            check.append((False))
-
-    print(check)

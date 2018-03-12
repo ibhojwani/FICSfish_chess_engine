@@ -20,10 +20,6 @@ import sys
 sys.path.insert(0, "/home/student/122-project/122-project/sunfish-master")
 import sunfish
 
-'''
-Much of this code is borrowed or modified from sunfish
-'''
-
 BLANK_BOARD = (
     '         \n'  #   0 -  9
     '         \n'  #  10 - 19
@@ -42,7 +38,8 @@ BLANK_BOARD = (
 Sunfish string-board coordinates to
 SunfishConvert list-board coordinates
 
-        Sunfish: appearance and index                     Integer
+Sunfish: appearance         index                SunfishConvert:Integer
+
         rnbqkbnr    21 22 23 24 25 26 27 28    	81 82 83 84 85 86 87 88
         pppppppp    31 32 33 34 35 36 37 38		71 72 73 74 75 76 77 78
         ........    41 42 43 44 45 46 47 48		61 62 63 64 65 66 67 68
@@ -67,6 +64,7 @@ def index_conversion(position):
 
     Inputs:
     	position: an integer representing a space on one of the boards
+
     Returns:
     	An integer representing a space on the other board.
     '''
@@ -87,9 +85,9 @@ def create_sunfish_board(string, next = "White"):
     Inputs:
         string: A string of moves from FICS
         next: A string "White" or "Black" that says which player is next
+
     Returns:
         A sunfish board represented by a string
-    
     '''
     board = SunfishConvert.played_board(string) #Converts string of moves to end board position
     new_board = list(BLANK_BOARD) #Turns string (blank Sunfish board) to list for element reassignment
@@ -105,11 +103,13 @@ def create_sunfish_board(string, next = "White"):
     returned_board = "" 
     for square in new_board: #Turns list back into a string
         returned_board += square
-    print(returned_board)
     return returned_board
 
 
-def modified_sunfish(string):
+def modified_sunfish(string, next = "White"):
+    '''
+    DISCLAIMER: Part of this code is borrowed or modified from sunfish
+    '''
     '''
     This function takes part of the code from Sunfish's function Main
     Sunfish is given a chess board with a played history as its
@@ -117,14 +117,16 @@ def modified_sunfish(string):
 
     Inputs:
         string: a string representing a series of chess moves
+
     Returns:
         Sunfish's suggested best moves in coordinate notation
         EX e2e4
     '''
-    sunfish_board = create_sunfish_board(string)
+    sunfish_board = create_sunfish_board(string, next)
     searcher = sunfish.Searcher()
     pos = sunfish.Position(sunfish_board, 0, (True,True), (True,True), 0, 0)
     move, score = searcher.search(pos, secs=2) #move returned as a tuple of integers
+    print(move)
 
     integer_move_from = index_conversion(move[0])
     integer_move_to = index_conversion(move[1])
