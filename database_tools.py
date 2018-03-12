@@ -44,8 +44,7 @@ INFO_TO_INCLUDE = {"WhiteElo": "INTEGER",
                    "Fics_ID": "INTEGER UNIQUE"}
 
 # Indices to build on database (<index name>, <table>, [<column(s)>])
-INDICES = []
-#("IX_Move", "Moves", ["Turn", "Move", "GameID"])
+INDICES = [("IX_Move", "Moves", ["Turn", "Move", "GameID"])]
 
 # Determines how many games go into a single INSERT statement. Adjusted to be
 # fast on my machine, don't know if the ideal number will be different on
@@ -128,7 +127,7 @@ def populate_db(games_file, db, n=None, verbose=False, single_file=True):
     input:
         games: filename with pgn of games to be added
         db: database to populate, filename
-        redundancy: when True, stops redundant files from being added
+        n: number of games to be added, None for all
         verbose: bool
         sinlge_file: True if only a single file is being added
     returns int,  # of games added
@@ -141,9 +140,9 @@ def populate_db(games_file, db, n=None, verbose=False, single_file=True):
     cur = conn.cursor()
 
     # Drops old indices. May be faster to omit this, needs testing.
-    if verbose:
-        print("Dropping Indices...")
-    drop_indices(cur)
+    # if verbose:
+    #     print("Dropping Indices...")
+    # drop_indices(cur)
 
     # Opens game file and adds games, printing % completion every 10%
     with open(games_file, "r") as file:
@@ -153,7 +152,7 @@ def populate_db(games_file, db, n=None, verbose=False, single_file=True):
 
     # Concludes insert, builds index and stat table, and closes connection
     i = conn.total_changes
-    if verbose:
+    if verbose and single_file:
         print("Building new indices and cleaning up...")
     if single_file:
         build_indices(cur)
@@ -181,9 +180,6 @@ def initialize_db(path):
 
     games_query = games_query + " GameID INTEGER PRIMARY KEY);"
     conn.execute(games_query)
-
-    files_added_query = "CREATE TABLE IF NOT EXISTS FilesAdded (FileName)"
-    conn.execute(files_added_query)
 
     moves_query = "Create Table IF NOT EXISTS Moves (\n" \
         "Move, Turn, GameID, FOREIGN KEY(GameID) REFERENCES Games(GameID));"
@@ -261,9 +257,7 @@ def add_games(game_list, db, n, verbose):
                 db.execute(game_query[:-3] + ";")
                 db.execute(move_query[:-3] + ";")
             except:
-                print(game_query[:-3])
-                print(move_query[:-3])
-                raise
+                pass
 
             # Reset variables
             game_query = build_game_query()
@@ -271,23 +265,6 @@ def add_games(game_list, db, n, verbose):
             query_timer = 0
 
     return None
-
-
-def check_file(games_file, db, unique):
-    '''
-    Checks if a given file has already been added to the db from the filename.
-    Inputs:
-        game_file: string, name of file (NOT path)
-        db: database cursor or connection
-    returns True if item in db, False if not
-    '''
-    if not unique:
-        return False
-
-    added_files = db.execute("SELECT FileName FROM FilesAdded WHERE FileName\
-        = ?", [games_file]).fetchall()
-
-    return bool(added_files)
 
 
 def drop_indices(conn):
@@ -309,12 +286,15 @@ def build_indices(conn):
         conn: database connection object
     returns None
     '''
+    init_t = time()
     for ix in INDICES:
         query = "CREATE INDEX IF NOT EXISTS {} on {} (".format(ix[0], ix[1])
         for col in ix[2]:
             query += "{}, ".format(col)
         query = query[:-2] + ");"
         conn.execute(query)
+
+    print("Built indices in {} seconds".format(time() - init_t))
 
     return None
 
@@ -396,7 +376,7 @@ def tweak_info(game_info):
     return game_info
 
 
-def add_all_in_dir(directory, db):
+def add_all_in_dir(directory, db, v):
     '''
     simple for loop to add all game files in a directory.
     Inputs:
@@ -404,11 +384,12 @@ def add_all_in_dir(directory, db):
         db: string, path of directory
     returns None
     '''
+    init_t = time()
     initialize_db(db)
     for i, file in enumerate(os.listdir(directory)):
         print("{}/{}".format(i + 1, len(os.listdir(directory))))
         if file.endswith(".pgn"):
-            populate_db("{}/{}".format(directory, file), db, single_file=False)
+            populate_db("{}/{}".format(directory, file), db, verbose=v, single_file=False)
         else:
             print("Skipping non .pgn file...")
 
@@ -416,6 +397,8 @@ def add_all_in_dir(directory, db):
     build_indices(conn)
     conn.commit()
     conn.close()
+    print("Completed in {} seconds.".format(time() - init_t))
+
     return None
 
 
@@ -426,7 +409,7 @@ def clear_db(db):
         db: database path
     returns None
     '''
-    tables = ["Moves", "Games", "FilesAdded", "sqlite_stat1"]
+    tables = ["Moves", "Games", "sqlite_stat1"]
     conn = sqlite3.connect(db)
 
     for table in tables:
@@ -451,6 +434,29 @@ def profile():
     stats = Stats('stats')
     stats.sort_stats("tottime")
     stats.print_stats(15)
+
+
+def test_best_move(conn, plays, reps=1, explain=False):
+    '''
+    Quick test function to test return_best().
+    '''
+    ls = []
+    for i in range(reps):
+        t = time()
+        filters = []
+        move = None
+        for i in range(plays):
+            try:
+                move = return_best(conn, filters, move, explain)
+                print(move)
+            except:
+                print("Out of moves: ", i + 1)
+                ls.append(i+1)
+                break
+            if i == plays - 1:
+                ls.append(plays)
+        print(time()-t)
+    print(sum(ls)/len(ls))
 
 
 if __name__ == "__main__":
