@@ -103,7 +103,26 @@ def create_sunfish_board(string, next = "White"):
     returned_board = "" 
     for square in new_board: #Turns list back into a string
         returned_board += square
+    if next == "Black":
+        returned_board = rotate_board(returned_board)
+    print(returned_board)
     return returned_board
+
+
+def rotate_board(string_board):
+    rows = []
+    for i in range(0,12):
+        index_start = i * 10
+        index_end = (i+1) * 10
+        row = string_board[index_start:index_end]
+        rows.append(row)
+    rows.reverse()
+    flipped_board = ""
+    for row in rows:
+        for square in row:
+            flipped_board += square
+    return flipped_board
+
 
 
 def modified_sunfish(string, next = "White"):
