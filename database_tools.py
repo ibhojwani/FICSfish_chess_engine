@@ -8,10 +8,10 @@ import re
 import sqlite3
 import os
 from time import time
-from translation import translate_int_to_move, translate_moves_to_int
 from cProfile import run
 from pstats import Stats
 from numpy import random
+from translation import translate_int_to_move, translate_moves_to_int
 
 '''
 TODO
@@ -45,7 +45,7 @@ INFO_TO_INCLUDE = {"WhiteElo": "INTEGER",
 
 # Indices to build on database (<index name>, <table>, [<column(s)>])
 INDICES = [("IX_Move", "Moves", ["Turn", "Move", "GameID"]),
-("IX_resuls", "Games", ["result"])]
+           ("IX_resuls", "Games", ["result"])]
 
 # Determines how many games go into a single INSERT statement. Adjusted to be
 # fast on my machine, don't know if the ideal number will be different on
@@ -60,6 +60,7 @@ def return_best(conn, filters, move=None, explain=False):
         conn: db connection
         views: list of names of current existing views for past turns
         turn: turn previously played
+    returns string or None if no move is available
     '''
     move_number = len(filters) + 1
 
@@ -110,6 +111,9 @@ def return_best(conn, filters, move=None, explain=False):
 
 
 def pick_move(query_results):
+    '''
+    Helper to pick move based on probability.
+    '''
     moves = []
     probs = []
     for pair in query_results:
@@ -215,7 +219,8 @@ def add_games(game_list, db, n, verbose):
 
     query_timer = 0
     # gets the highest rowID currently in table
-    starting_rowid = db.execute("SELECT MAX(gameID) from games;").fetchall()[0][0]
+    starting_rowid = db.execute(
+        "SELECT MAX(gameID) from games;").fetchall()[0][0]
     if not starting_rowid:
         starting_rowid = 0
     game_query = build_game_query()
@@ -390,7 +395,8 @@ def add_all_in_dir(directory, db, v):
     for i, file in enumerate(os.listdir(directory)):
         print("{}/{}".format(i + 1, len(os.listdir(directory))))
         if file.endswith(".pgn"):
-            populate_db("{}/{}".format(directory, file), db, verbose=v, single_file=False)
+            populate_db("{}/{}".format(directory, file),
+                        db, verbose=v, single_file=False)
         else:
             print("Skipping non .pgn file...")
 
@@ -461,7 +467,7 @@ def test_best_move(conn, plays, reps=1, explain=False):
 
 
 if __name__ == "__main__":
-    add_all_in_dir(os.getcwd(), "database.db")
+    add_all_in_dir(os.getcwd(), "database.db", True)
 
 
 '''
