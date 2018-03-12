@@ -16,6 +16,7 @@
       <input type="button" id="moveforme" value="Make move for me" />
       <input type="button" id="moves" value="output move" />
       <input type="button" id="undo" value="undo move" />
+      <input type="button" id="reset" value="Reset" />
 
 
 
@@ -31,7 +32,7 @@
             game.undo();
             updateStatus();
             board.position(game.fen());
-            white = !(white)
+            white = !(white);
             $.ajax({
                 url: '{% url "undo" %}',
                 data: {undo: true},
@@ -42,7 +43,22 @@
             });
         })
 
-
+        $('#reset').on('click', function(){
+            game.reset();
+            updateStatus();
+            board.position(game.fen());
+            white = true;
+            $.ajax({
+                url: '{% url "reset" %}',
+                data: {reset: true},
+                type: 'GET',
+                datatype: 'json',
+            }).done(function(data){
+                temp = best_move[0];
+                best_move = [];
+                best_move.push(temp);
+            })
+        });
 
         var onDragStart = function(source, piece, position, orientation) {
           if (game.game_over() === true ||
