@@ -14,6 +14,7 @@ def translate_moves_to_int(moves, ls=False):
     representation. See doc string at end of file for details on method.
     Inputs:
         moves: string containing moves list
+        ls: True if input is a list of moves
     returns list of 2 byte signed ints
     '''
     # consider switching kings and pawns?
@@ -27,7 +28,7 @@ def translate_moves_to_int(moves, ls=False):
         rounds = re.split(r" \w*\. ", moves[3:])
         turns = []
         for r in rounds:
-            turns += r.split(" ")  # this could be done in main loop to save time
+            turns += r.split(" ")
     else:
         turns = [moves]
     int_turns = []
