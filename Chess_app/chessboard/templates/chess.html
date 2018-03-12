@@ -86,6 +86,7 @@
         // for castling, en passant, pawn promotion
         var onSnapEnd = function() {
           board.position(game.fen());
+          white = !white
           var list_moves = game.history({verbose:true});
           var alg = "";
           for (i = 0; i < list_moves.length; i++){
@@ -98,7 +99,6 @@
               datatype: 'json',
           }).done(function(data) {
               best_move.push(data.m) ;
-              white = !white
           })
         };
 
@@ -138,7 +138,7 @@
             game.move(best_move[best_move.length - 1], {sloppy: true});
             updateStatus();
             board.position(game.fen());
-            white = !white
+            white = !white;
 
             var list_moves = game.history({verbose:true});
             var alg = "";
