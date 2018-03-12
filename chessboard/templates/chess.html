@@ -22,6 +22,7 @@
 
     <script>
         var best_move = [] //variables to be used throughout the code
+        var ready = true
         var white = true
         var board,
           game = new Chess()
@@ -31,6 +32,8 @@
           //on our website, so we can undo a move if there is
           //a mistake
         $('#undo').on('click', function(){
+            ready = false;
+            checkReady();
             game.undo(); //undoes the move according to the ongoing javascript chess game
             updateStatus(); //Updates the status of the game to see who's turn it is for the js chess game
             board.position(game.fen()); //Updates the visual of the game
@@ -41,7 +44,9 @@
                 type: 'GET',
                 datatype: 'json',
             }).done(function(data){
-                best_move.pop() //Removes the last move from our recommendations list
+                best_move.pop(); //Removes the last move from our recommendations list
+                ready = true;
+                checkReady();
             });
         })
 
@@ -50,6 +55,8 @@
         //resets the javascript chess game and resets the board to its starting
         //position
         $('#reset').on('click', function(){
+            ready = false;
+            checkReady();
             game.reset(); //Resets js chess game
             updateStatus();
             board.position(game.fen()); //resets the game board visual
@@ -64,6 +71,8 @@
                 best_move = [];
                 best_move.push(temp); //resets recommendations list to the first recommended move
             })
+            ready = true;
+            checkReady();
         });
 
         //A function to only allow dragging pieces of the color whose turn it is.
@@ -97,8 +106,11 @@
         // to views and generates the next best move which gets sent back
         // and appended to our best_move list
         var onSnapEnd = function() {
+          ready = false;
+          checkReady();
           board.position(game.fen()); //Updates the visual of the game
           white = !white //toggles turn for python considerations
+          temp = best_move.length;
 
           //The following lines get the history of the game as a string to send
           //to our python function and use there
@@ -114,9 +126,32 @@
               datatype: 'json',
           }).done(function(data) {
               best_move.push(data.m) ; //Adds the recommended move from our python function to our recommended moves list
+              ready = true;
+              checkReady()
           })
         };
 
+        var checkReady = function() {
+            if(ready == false){
+                document.getElementById("moveforme").disabled = true; //OR
+                document.getElementById("moves").disabled = true;
+                document.getElementById("undo").disabled = true;
+                document.getElementById("reset").disabled = true;
+                document.getElementById("moveforme").readOnly = true; //OR
+                document.getElementById("moves").readOnly = true;
+                document.getElementById("undo").readOnly = true;
+                document.getElementById("reset").readOnly = true;
+            } else{
+                document.getElementById("moveforme").disabled = false; //OR
+                document.getElementById("moves").disabled = false;
+                document.getElementById("undo").disabled = false;
+                document.getElementById("reset").disabled = false;
+                document.getElementById("moveforme").readOnly = false; //OR
+                document.getElementById("moves").readOnly = false;
+                document.getElementById("undo").readOnly = false;
+                document.getElementById("reset").readOnly = false;
+            }
+        }
         // Updates whose turn it is and whether the game is over or not
         var updateStatus = function() {
           var status = '';
@@ -154,6 +189,8 @@
         //recommended move is, then calculates that recommended move again and
         //adds it to the list
         $('#moveforme').on('click', function() {
+            ready = false;
+            checkReady();
             game.move(best_move[best_move.length - 1], {sloppy: true}); //Sloppy allows sunfish move recommendation
             updateStatus();
             board.position(game.fen());
@@ -171,6 +208,8 @@
                 datatype: 'json',
             }).done(function(data) {
                 best_move.push(data.m) ;
+                ready = true;
+                checkReady();
             })
         });
 
