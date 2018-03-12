@@ -21,34 +21,40 @@
 
 
     <script>
-        var best_move = []
+        var best_move = [] //variables to be used throughout the code
         var white = true
         var board,
           game = new Chess()
 
-        // do not pick up pieces if the game is over
-        // only pick up pieces for the side to move
+
+          //A function to implement an undo button
+          //on our website, so we can undo a move if there is
+          //a mistake
         $('#undo').on('click', function(){
-            game.undo();
-            updateStatus();
-            board.position(game.fen());
-            white = !(white);
-            $.ajax({
+            game.undo(); //undoes the move according to the ongoing javascript chess game
+            updateStatus(); //Updates the status of the game to see who's turn it is for the js chess game
+            board.position(game.fen()); //Updates the visual of the game
+            white = !(white); //Toggles the turn that will be sent to our python file for sunfish considerations
+            $.ajax({ //Sends an ajax request to the views function to actually call our python Functions
                 url: '{% url "undo" %}',
                 data: {undo: true},
                 type: 'GET',
                 datatype: 'json',
             }).done(function(data){
-                best_move.pop()
+                best_move.pop() //Removes the last move from our recommendations list
             });
         })
 
+
+        //A function to implement a reset button on our website. It basically
+        //resets the javascript chess game and resets the board to its starting
+        //position
         $('#reset').on('click', function(){
-            game.reset();
+            game.reset(); //Resets js chess game
             updateStatus();
-            board.position(game.fen());
-            white = true;
-            $.ajax({
+            board.position(game.fen()); //resets the game board visual
+            white = true; //toggles the turn to white
+            $.ajax({ //Another ajax request to be sent to views to reset filters
                 url: '{% url "reset" %}',
                 data: {reset: true},
                 type: 'GET',
@@ -56,10 +62,12 @@
             }).done(function(data){
                 temp = best_move[0];
                 best_move = [];
-                best_move.push(temp);
+                best_move.push(temp); //resets recommendations list to the first recommended move
             })
         });
 
+        //A function to only allow dragging pieces of the color whose turn it is.
+        //Also only allows pieces to be dragged if the game is not over
         var onDragStart = function(source, piece, position, orientation) {
           if (game.game_over() === true ||
               (game.turn() === 'w' && piece.search(/^b/) !== -1) ||
@@ -68,12 +76,14 @@
           }
         };
 
+        // This function verifies whether a specific move is actually legal
+        // Also checks on promotions and things of the sort
         var onDrop = function(source, target) {
           // see if the move is legal
           var move = game.move({
             from: source,
             to: target,
-            promotion: 'q' // NOTE: always promote to a queen for example simplicity
+            promotion: 'q'
           });
 
           // illegal move
@@ -83,25 +93,31 @@
         };
 
         // update the board position after the piece snap
-        // for castling, en passant, pawn promotion
+        // for castling, en passant, pawn promotion. Also sends the ajax request
+        // to views and generates the next best move which gets sent back
+        // and appended to our best_move list
         var onSnapEnd = function() {
-          board.position(game.fen());
-          white = !white
+          board.position(game.fen()); //Updates the visual of the game
+          white = !white //toggles turn for python considerations
+
+          //The following lines get the history of the game as a string to send
+          //to our python function and use there
           var list_moves = game.history({verbose:true});
           var alg = "";
           for (i = 0; i < list_moves.length; i++){
               alg += String(i+1) + ". " + list_moves[i].san + " "
           }
-          $.ajax({
+          $.ajax({ //An ajax request that sends our moves and whose turn it is
               url: '{% url "move_generator" %}',
               data: {moves: alg, w: white},
               type: 'GET',
               datatype: 'json',
           }).done(function(data) {
-              best_move.push(data.m) ;
+              best_move.push(data.m) ; //Adds the recommended move from our python function to our recommended moves list
           })
         };
 
+        // Updates whose turn it is and whether the game is over or not
         var updateStatus = function() {
           var status = '';
 
@@ -134,8 +150,11 @@
           }
         };
 
+        //Function implementing a move for me button. It moves based on what the
+        //recommended move is, then calculates that recommended move again and
+        //adds it to the list
         $('#moveforme').on('click', function() {
-            game.move(best_move[best_move.length - 1], {sloppy: true});
+            game.move(best_move[best_move.length - 1], {sloppy: true}); //Sloppy allows sunfish move recommendation
             updateStatus();
             board.position(game.fen());
             white = !white;
@@ -155,11 +174,14 @@
             })
         });
 
-
+        //Function implements a "give recommendation" button
+        //that just tells what the recommended move is.
         $('#moves').on('click', function() {
-            alert(best_move[best_move.length - 1]);
+            alert(best_move[best_move.length - 1]); //Outputs the move
         });
 
+        //This is a set of configuration elements needed to be input to the board
+        //generator. This is covered in the chessboard.js documentation.
         var cfg = {
           draggable: true,
           position: 'start',
@@ -172,7 +194,8 @@
 
         updateStatus();
 
-        window.onload = function() {
+        //Function to calculate best move before the game starts.
+        window.onload = function() { //On load allows calculation on the load of the webpage
             if(best_move.length == 0){
                 $.ajax({
                     url: '{% url "move_generator" %}',
