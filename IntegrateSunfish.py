@@ -20,7 +20,7 @@ import sys
 sys.path.insert(0, "/home/student/122-project/122-project/sunfish-master")
 import sunfish
 
-FLIPPED_DICT = {1:8, 2:7, 3:6, 4:5, 5:4, 6:3, 7:2, 8:1}
+FLIPPED_DICT = {"1":"8", "2":"7", "3":"6", "4":"5", "5":"4", "6":"3", "7":"2", "8":"1"}
 
 BLANK_BOARD = (
     '         \n'  #   0 -  9
@@ -153,10 +153,9 @@ def modified_sunfish(string, next = "White"):
     integer_move_to = index_conversion(move[1])
     coordinate_from = SunfishConvert.int_to_alg(integer_move_from)
     coordinate_to = SunfishConvert.int_to_alg(integer_move_to)
-
     if next == "Black":
-        coordinate_from = coordinate_from[0] + str(FLIPPED_DICT[coordinate_from[1]])
-        coordinate_to = coordinate_to[0] + str(FLIPPED_DICT[coordinate_to[1]])
+        coordinate_from = coordinate_from[0] + (FLIPPED_DICT[coordinate_from[1]])
+        coordinate_to = coordinate_to[0] + (FLIPPED_DICT[coordinate_to[1]])
 
     best_move = coordinate_from + coordinate_to
 
